@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Setup channels
 conda config --add channels defaults
 conda config --add channels bioconda
@@ -49,7 +50,7 @@ ln -s ~/KrakenTools-1.2 $HOME/bin/KrakenTools-1.2
 
 # Download Minikraken database with the cleaned eukaryotic pathogen genomes
 wget https://genome-idx.s3.amazonaws.com/kraken/minikraken2_v1_8GB_201904.tgz
-
+tar zxvf minikraken2_v1_8GB_201904.tgz
 '
 If the desired database is not available, we describe here how to create a
 custom Kraken 2 database using the kraken2-build script options:
@@ -92,6 +93,12 @@ mkdir m_samples
 mkdir b_index
 
 # Download SRA samples (not shown)
+~/software/sratoolkit.3.0.7-ubuntu64/bin/prefetch \
+	--option-file data/sra/kraken-sra.txt --output-directory m_samples/
+ mv m_samples/*/*.sra m_samples/
+~/software/sratoolkit.3.0.7-ubuntu64/bin/fastq-dump --outdir m_samples/ \
+	--gzip --skip-technical  --readids --read-filter pass \
+	--dumpbase --split-3 --clip m_samples/*sra
 
 # Inside the b_index folder, download the k2protocol_bowtie2indices.tgz file 
 # from http://ccb.jhu.edu/data/kraken2_protocol/ and unpack the files:
@@ -145,82 +152,141 @@ mkdir bracken_outputs
 ' We need the database and FASTA file of sequences
 kraken2 --db $DBNAME seqs.fq
 '
-kraken2 --db k2protocol_db --threads 8 --report kreports/SRR14143424.k2report \
-  --report-minimizer-data --minimum-hit-groups 3 m_samples/SRR14143424_1.fastq \
-  m_samples/SRR14143424_2.fastq > kraken_outputs/SRR14143424.kraken2
-'
-Loading database information... done.
-60431111 sequences (7148.66 Mbp) processed in 187.147s (19374.4 Kseq/m, 2291.88 Mbp/m).
-17964649 sequences classified (29.73%)
-42466462 sequences unclassified (70.27%)
-'
-kraken2 --db k2protocol_db --threads 8 --report kreports/SRR14092160.k2report \
-  --report-minimizer-data --minimum-hit-groups 3 m_samples/SRR14092160_1.fastq \
-  m_samples/SRR14092160_2.fastq > kraken_outputs/SRR14092160.kraken2
-'
-Loading database information... done.
-73021500 sequences (8907.00 Mbp) processed in 236.398s (18533.5 Kseq/m, 2260.67 Mbp/m).
-11996432 sequences classified (16.43%)
-61025068 sequences unclassified (83.57%) 
-'
-kraken2 --db k2protocol_db --threads 8 --report kreports/SRR14092310.k2report \
-  --report-minimizer-data --minimum-hit-groups 3 m_samples/SRR14092310_1.fastq \
-  m_samples/SRR14092310_2.fastq > kraken_outputs/SRR14092310.kraken2
-'
-Loading database information... done.
-53998936 sequences (6634.00 Mbp) processed in 156.566s (20693.7 Kseq/m, 2542.31 Mbp/m).
-36170969 sequences classified (66.98%)
-17827967 sequences unclassified (33.02%)
-'
+
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14092160.k2report \
+  --minimum-hit-groups 3 \
+  --report-minimizer-data \
+  m_samples/SRR14092160_pass_1.fastq.gz \
+  m_samples/SRR14092160_pass_2.fastq.gz \
+  > kraken_outputs/SRR14092160.kraken2
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14092310.k2report \
+  --minimum-hit-groups 3 \
+  --report-minimizer-data \
+  m_samples/SRR14092310_pass_1.fastq.gz \
+  m_samples/SRR14092310_pass_2.fastq.gz \
+  > kraken_outputs/SRR14092310.kraken2
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14143424.k2report \
+  --minimum-hit-groups 3 \
+  --report-minimizer-data \
+  m_samples/SRR14143424_pass_1.fastq.gz \
+  m_samples/SRR14143424_pass_2.fastq.gz \
+  > kraken_outputs/SRR14143424.kraken2
+
+
+## no minimizer data
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14092160_no_minimizer_data.k2report \
+  --minimum-hit-groups 3 \
+  m_samples/SRR14092160_pass_1.fastq.gz \
+  m_samples/SRR14092160_pass_2.fastq.gz \
+  > kraken_outputs/SRR14092160_no_minimizer_data.kraken2
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14092310_no_minimizer_data.k2report \
+  --minimum-hit-groups 3 \
+  m_samples/SRR14092310_pass_1.fastq.gz \
+  m_samples/SRR14092310_pass_2.fastq.gz \
+  > kraken_outputs/SRR14092310_no_minimizer_data.kraken2
+kraken2 --db minikraken2_v1_8GB \
+  --threads 8 \
+  --paired \
+  --report kreports/SRR14143424_no_minimizer_data.k2report \
+  --minimum-hit-groups 3 \
+  m_samples/SRR14143424_pass_1.fastq.gz \
+  m_samples/SRR14143424_pass_2.fastq.gz \
+  > kraken_outputs/SRR14143424_no_minimizer_data.kraken2
+
+
+
+
 # 3. Run bracken for abundance estimation of microbiome samples
 ' Generic Bracken invocation
 bracken -d kraken_database -i sample.k2report -r read_length \
 -l taxonomic_level -t read_threshold -o sample.bracken -w sample.breport\
 '
-bracken -d k2protocol_db -i kreports/SRR14143424.k2report -r 100 -l S -t 10 \
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14143424.k2report -r 100 -l S -t 10 \
   -o bracken_outputs/SRR14143424.bracken -w breports/SRR14143424.breport
-'
-BRACKEN SUMMARY (Kraken report: kreports/SRR14143424.k2report)
->>> Threshold: 10
->>> Number of species in sample: 1570
-	>> Number of species with reads > threshold: 500
-	>> Number of species with reads < threshold: 1070
->>> Total reads in sample: 60431111
-	>> Total reads kept at species level (reads > threshold): 15283051
-	>> Total reads discarded (species reads < threshold): 2787
-	>> Reads distributed: 2677396
-	>> Reads not distributed (eg. no species above threshold): 1415
-	>> Unclassified reads: 42466462
-'
 
-bracken -d k2protocol_db -i kreports/SRR14092160.k2report -r 100 -l S -t 10 \
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14092160.k2report -r 100 -l S -t 10 \
   -o bracken_outputs/SRR14092160.bracken -w breports/SRR14092160.breport
-'
->>> Threshold: 10
->>> Number of species in sample: 1722
-	>> Number of species with reads > threshold: 554
-	>> Number of species with reads < threshold: 1168
->>> Total reads in sample: 73021500
-	>> Total reads kept at species level (reads > threshold): 9277455
-	>> Total reads discarded (species reads < threshold): 3165
-	>> Reads distributed: 2714446
-	>> Reads not distributed (eg. no species above threshold): 1366
-	>> Unclassified reads: 61025068
-'
-bracken -d k2protocol_db -i kreports/SRR14092310.k2report -r 100 -l S -t 10 \
--o bracken_outputs/SRR14092310.bracken -w breports/SRR14092310.breport
-'
->>> Threshold: 10
->>> Number of species in sample: 1013
-	>> Number of species with reads > threshold: 201
-	>> Number of species with reads < threshold: 812
->>> Total reads in sample: 53998936
-	>> Total reads kept at species level (reads > threshold): 23421667
-	>> Total reads discarded (species reads < threshold): 2065
-	>> Reads distributed: 12747044
-	>> Reads not distributed (eg. no species above threshold): 193
-	>> Unclassified reads: 17827967 
-'
+
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14092310.k2report -r 100 -l S -t 10 \
+  -o bracken_outputs/SRR14092310.bracken -w breports/SRR14092310.breport
+
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14143424_no_minimizer_data.k2report -r 100 -l S -t 10 \
+  -o bracken_outputs/SRR14143424_no_minimizer_data.bracken \
+  -w breports/SRR14143424_no_minimizer_data.breport
+
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14092160_no_minimizer_data.k2report -r 100 -l S -t 10 \
+  -o bracken_outputs/SRR14092160_no_minimizer_data.bracken \
+  -w breports/SRR14092160_no_minimizer_data.breport
+
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14092310_no_minimizer_data.k2report -r 100 -l S -t 10 \
+  -o bracken_outputs/SRR14092310_no_minimizer_data.bracken \
+  -w breports/SRR14092310_no_minimizer_data.breport
+
+# No difference between these reports
+combine_kreports.py -r kreports/SRR14092160.k2report kreports/SRR14092310.k2report \
+  kreports/SRR14143424.k2report \
+  -o kraken_report_all.txt
+combine_kreports.py -r kreports/*_no_minimizer_data.k2report \
+  -o kraken_report_all_no_minimizer_data.txt
+
+combine_kreports.py -r breports/SRR14092160.breport breports/SRR14092310.breport breports/SRR14143424.breport -o bracken_report_all.txt
+combine_kreports.py -r breports/*_no_minimizer_data.breport \
+  -o bracken_report_all_no_minimizer_data.txt
+
+# perc............percentage of total reads rooted at this clade
+# tot_all ........total reads rooted at this clade (including reads at more specific clades)
+# tot_lvl.........total reads at this clade (not including reads at more specific clades)
+# 1_all...........reads from Sample 1 rooted at this clade
+# 1_lvl...........reads from Sample 1 at this clade
+# 2_all...........""
+# 2_lvl...........""
+# etc..
+# lvl_type........Clade level type (R, D, P, C, O, F, G, S....)
+# taxid...........taxonomy ID of this clade
+# name............name of this clade
+
+
+# Kreport2mpa: Only with no minimizer data!
+kreport2mpa.py -r kreports/SRR14092160_no_minimizer_data.k2report \
+  -o kreports/SRR14092160_no_minimizer_data.mpa.txt
+kreport2mpa.py -r kreports/SRR14092310_no_minimizer_data.k2report \
+  -o kreports/SRR14092310_no_minimizer_data.mpa.txt
+kreport2mpa.py -r kreports/SRR14143424_no_minimizer_data.k2report \
+  -o kreports/SRR14143424_no_minimizer_data.mpa.txt
+
+# On bracken also works!
+kreport2mpa.py -r breports/SRR14092160_no_minimizer_data.breport \
+  -o breports/SRR14092160_breport_no_minimizer_data.mpa.txt
+kreport2mpa.py -r breports/SRR14092310_no_minimizer_data.breport \
+  -o breports/SRR14092310_breport_no_minimizer_data.mpa.txt
+kreport2mpa.py -r breports/SRR14143424_no_minimizer_data.breport \
+  -o breports/SRR14143424_breport_no_minimizer_data.mpa.txt
+# combine_mpa.py combines multiple outputs from kreport2mpa.py: can also use on bracken
+combine_mpa.py -i kreports/*_no_minimizer_data.mpa.txt -o kreports/combined_mpa.txt
+combine_mpa.py -i breports/*_no_minimizer_data.mpa.txt -o breports/bracken_combined_mpa.txt
+
+
 # Calculate alpha-diversity
 # with conda:
 alpha_diversity.py -f bracken_outputs/SRR14143424.bracken -a BP

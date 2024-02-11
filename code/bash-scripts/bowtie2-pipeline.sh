@@ -5,6 +5,7 @@ mem_req_sort=4G
 nthreads_sort=8
 # 1. Remove host DNA with bowtie2
 ### Activate qc-tools environment that has samtools and bowtie2
+source ~/miniconda3/etc/profile.d/conda.sh
 conda activate qc-tools
 ## 1.1 Bowtie2 mapping against host sequence
 ### RUN WITHOUT TRIMMOMATIC OR TRF
@@ -12,27 +13,66 @@ conda activate qc-tools
 ### SAMPLE is path and file without extension (data/fastq/yasuda-fastq/2D10_wms)
 ### base_name is just the file without extension or path (2D10_wms)
 #mkdir output
-#mkdir output/bowtie2_output_sam
-#mkdir output/bowtie2_output_bam
-#mkdir output/bowtie2_filtered_bam
-#mkdir output/bowtie2_sorted_bam
-#mkdir data/bowtie2_host_removed_fastq
+#mkdir output/bowtie2_pipeline
+#mkdir output/bowtie2_pipeline/bowtie2_output_sam
+#mkdir output/bowtie2_pipeline/bowtie2_output_bam
+#mkdir output/bowtie2_pipeline/bowtie2_filtered_bam
+#mkdir output/bowtie2_pipeline/bowtie2_sorted_bam
+#mkdir data/bowtie2_decontam_fastq
 fastq_dir=data/fastq/yasuda-fastq
-bowtie2_output_sam_dir=output/bowtie2_output_sam
-bowtie2_output_bam_dir=output/bowtie2_output_bam
-bowtie2_filtered_bam_dir=output/bowtie2_filtered_bam
-bowtie2_sorted_bam_dir=output/bowtie2_sorted_bam
-bowtie2_host_removed_fastq_dir=data/bowtie2_host_removed_fastq
+cutadapt_output_dir=output/qc_pipeline/cutadapt_output
+fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
 bowtie2_indices_dir=~/common_data/bowtie2_indices
-for FILE in ${fastq_dir}/*L3_1.fq.gz
+bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
+bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
+bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
+bowtie2_sorted_bam_dir=output/bowtie2_pipeline/bowtie2_sorted_bam
+bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
+fastqc_output_decontam_dir=output/qc_pipeline/fastqc_output_decontam
+multiqc_output_dir=output/qc_pipeline/multiqc_output
+
+# The Bowtie2 pipeline consists of these steps:
+### 1. Align the reads to the reference genome
+### 1.2 Convert file .sam to .bam
+### 1.3 Filter unmapped reads (unmapped to host genome)
+### 1.4 Split paired-end reads into separated fastq files .._R1 .._R2
+### sort bam file by read name ( -n ) to have paired reads next to each other 
+### 2. Run FastQC and MultiQC on decontaminated data as a final check
+### 2.1 Run MultiQC on decontaminated data
+
+# 1. Align the reads to the reference genome
+### On raw data (don't do it!)
+# for FILE in ${fastq_dir}/*L3_1.fq.gz
+# do 
+#   SAMPLE=$(echo ${FILE} | sed "s/_L3_1\.fq\.gz//")
+#   base_name=$(basename "$SAMPLE" )
+#   bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
+#   -1 ${fastq_dir}/${base_name}_L3_1.fq.gz \
+#   -2 ${fastq_dir}/${base_name}_L3_2.fq.gz \
+#   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
+# done
+### On trimmed data (from cutadapt)
+for FILE in ${cutadapt_output_dir}/*R1.trimmed.fastq.gz
 do 
-  SAMPLE=$(echo ${FILE} | sed "s/_L3_1\.fq\.gz//")
+  SAMPLE=$(echo ${FILE} | sed "s/_R1\.trimmed\.fastq\.gz//")
   base_name=$(basename "$SAMPLE" )
   bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
-  -1 ${fastq_dir}/${base_name}_L3_1.fq.gz \
-  -2 ${fastq_dir}/${base_name}_L3_2.fq.gz \
-  -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
+  -1 ${cutadapt_output_dir}/${base_name}_R1.trimmed.fastq.gz \
+  -2 ${cutadapt_output_dir}/${base_name}_R2.trimmed.fastq.gz \
+  -S ${bowtie2_output_sam_dir}/${base_name}_trim_mapped_and_unmapped.sam;
 done
+
+### On trimmed data where tandem repeats were removed (TRF)
+# for FILE in ${fastq_norepeats_dir}/*R1.clean.fastq.gz
+# do 
+#   SAMPLE=$(echo ${FILE} | sed "s/_R1\.clean\.fastq\.gz//")
+#   base_name=$(basename "$SAMPLE" )
+#   bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
+#   -1 ${fastq_norepeats_dir}/${base_name}_R1.clean.fastq.gz \
+#   -2 ${fastq_norepeats_dir}/${base_name}_R2.clean.fastq.gz \
+#   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
+# done
+
 
 ## 1.2 Convert file .sam to .bam
 for FILE in ${bowtie2_output_sam_dir}/*mapped_and_unmapped.sam
@@ -63,10 +103,17 @@ for FILE in ${bowtie2_filtered_bam_dir}/*bothReadsUnmapped.bam
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_bothReadsUnmapped\.bam//")
   base_name=$(basename "$SAMPLE" )
-  samtools sort -n -m ${mem_req_sort} -@ ${nthreads_sort} ${bowtie2_filtered_bam_dir}/${base_name}_bothReadsUnmapped.bam \
+  samtools sort -n -m ${mem_req_sort} -@ ${nthreads_sort} \
+  ${bowtie2_filtered_bam_dir}/${base_name}_bothReadsUnmapped.bam \
     -o ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam
   samtools fastq -@ ${nthreads_sort} ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam \
-  	-1 ${bowtie2_host_removed_fastq_dir}/${base_name}_host_removed_R1.fastq.gz \
-  	-2 ${bowtie2_host_removed_fastq_dir}/${base_name}_host_removed_R2.fastq.gz \
+  	-1 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R1.fastq.gz \
+  	-2 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
   	-0 /dev/null -s /dev/null -n;
 done
+
+# 2. Run FastQC and MultiQC on decontaminated data as a final check
+# fastqc ${bowtie2_decontam_fastq_dir}/2D10_wms_decontam_R1.fastq.gz --outdir fastqc_output
+fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_output_decontam_dir}
+## 2.1 Run MultiQC on decontaminated data
+multiqc ${fastqc_output_decontam_dir} --outdir ${multiqc_output_dir}
