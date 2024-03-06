@@ -9,7 +9,7 @@ library(tidyverse)
 library(Polychrome)
 library(ggtext)
 ## Specifying parameters and directory/file names #### 
-agglom.rank<-"Phylum" # this is the taxonomic rank that was used for agglomeration
+agglom.rank<-"Species" # this is the taxonomic rank that was used for agglomeration
 barplot.directory<-"./images/barplots/" # set the path where barplots will
 # be saved
 
@@ -44,7 +44,7 @@ ps.q.agg<-ps.q.agg%>%
 
 
 # Ordering the legend
-if(asvlevel==TRUE){
+if(agglom.rank=="Species"){
   taxa.list<-ps.q.agg%>%
     group_by(class,OTU)%>%
     filter(MeanRelativeAbundance>=0.1)%>%
@@ -63,7 +63,7 @@ if(asvlevel==TRUE){
 }
 
 taxa.list<-c(taxa.list,"Remainder")
-custom_order <- c("Remainder","Kingdom", "Phylum", "Class", "Order", "Family")
+custom_order <- c("Remainder","Kingdom", "Phylum", "Class", "Order", "Family","Species")
 # If we agglomerate by higher level (Order,Class, etc), need to adjust the rank
 if(agglom.rank%in%custom_order){
   agglom.rank.index<-match(agglom.rank,custom_order)
@@ -117,7 +117,7 @@ unclassified.taxa.sorted<-unname(unclassified.taxa.sorted)
 # Add sorted unclassified taxa to the sorted classified taxa -> create final 
 # vector taxa.for_bp.list
 taxa.for_bp.list<-c(unclassified.taxa.sorted,taxa.for_bp.list)
-taxa.for_bp.list[1]<-"Remainder (Mean abundance < 1%)"
+taxa.for_bp.list[1]<-"Remainder (Mean abundance < 0.1%)"
 # Add taxa for barplot to the main dataframe
 ps.q.agg<-ps.q.agg%>%
   left_join(taxa.for_bp.df,by=agglom.rank)%>%
@@ -126,12 +126,12 @@ ps.q.agg<-ps.q.agg%>%
   rename(!!preceding.rank:=paste0(preceding.rank,".x")) # rename the preceding.rank column
 # !!preceding.rank:= will evaluate the variable
 
-# Set <1% as remainder, otherwise it's Taxon.bp
+# Set <0.1% as remainder, otherwise it's Taxon.bp
 ps.q.agg[which(ps.q.agg$MeanRelativeAbundance>=0.1&is.na(ps.q.agg$Taxon.bp)),"Taxon.bp"]<-
   ps.q.agg[which(ps.q.agg$MeanRelativeAbundance>=0.1&is.na(ps.q.agg$Taxon.bp)),agglom.rank]
 
-ps.q.agg[which(ps.q.agg$MeanRelativeAbundance<1),"Taxon.bp"]<-
-  "Remainder (Mean abundance < 1%)"
+ps.q.agg[which(ps.q.agg$MeanRelativeAbundance<0.1),"Taxon.bp"]<-
+  "Remainder (Mean abundance < 0.1%)"
 
 # find class and agglom.rank columns, just in case
 classcol<-which(colnames(ps.q.agg) =="class")
@@ -152,7 +152,15 @@ ps.q.agg<-ps.q.agg%>%
   mutate(MeanRelativeAbundance = mean(RelativeAbundance))
 
 # Relative abundance per kingdom (including bacteria)
+unclassified_reads<-read.table("./output/kraken2_pipeline/unclassified_reads.tsv",
+                               header = T)
+colnames(unclassified_reads)[which(colnames(unclassified_reads)=="Unclassified")]<-"Abundance"
+unclassified_reads$Kingdom<-"Unclassified"
+
 kingdom.plot.with_bact<-ps.q.agg%>%
+  group_by(Sample,Kingdom)%>%
+  summarise(Abundance=sum(Abundance))%>%
+  bind_rows(unclassified_reads)%>%
   group_by(Kingdom)%>%
   summarise(TotalAbundance=sum(Abundance))%>%
   mutate(TotalAbundancePerTax=TotalAbundance/sum(TotalAbundance)*100)%>%
@@ -168,7 +176,7 @@ kingdom.plot.with_bact<-ps.q.agg%>%
          (Kingdom level)")+
   geom_text(aes(x=Kingdom, 
                 y=TotalAbundancePerTax, 
-                label=round(TotalAbundancePerTax,digits = 2)),
+                label=round(TotalAbundancePerTax,digits = 3)),
             vjust=-0.5,size=8)+ # add text with percentage above the bar
   theme(axis.line = element_blank(), 
         axis.text.x = element_text(size=20),
@@ -184,12 +192,17 @@ kingdom.plot.with_bact<-ps.q.agg%>%
 
 # save the plots: kingdom.plot.with_bact
 ggsave(paste0(barplot.directory,
-                paste(Sys.Date(),custom.levels,"kingdom.plot.with_bact",
+                paste(Sys.Date(),custom.levels,"kingdom.plot.with_unclas",
                       sep = "-"),".png"),
          plot=kingdom.plot.with_bact,
          width = 5000,height = 3000,
          units = "px",dpi=300,device = "png")
-
+ggsave(paste0(barplot.directory,
+              paste(Sys.Date(),custom.levels,"kingdom.plot.with_unclas",
+                    sep = "-"),".tiff"),
+       plot=kingdom.plot.with_bact,
+       width = 5000,height = 3000,
+       units = "px",dpi=300,device = "tiff")
 # Check library size per sample
 ps.q.agg%>%group_by(Sample)%>%
   summarise(TotalSample=sum(Abundance))%>%
@@ -280,50 +293,50 @@ col.vec<-setNames(plot.cols,ps.q.legend$Taxon.bp)
 # is a taxon that must be colored. But we must convert the `Taxon.bp` into
 # factor, so it can map to the vector of color. **The order of factorised
 # `Taxon.bp` is based on the `Taxon` column from the legend**.
-# mainplot<-ps.q.agg%>%
-#   group_by(Sample)%>%
-#   mutate(TotalSample=sum(Abundance))%>% # add total counts per sample, 
-#   # so we can have info about sample size
-#   ungroup()%>%
-#   mutate(class=factor(class,levels=custom.levels))%>% # change the order of
-#   # our class column, so the NMR will be first
-#   mutate(NewSample=paste0(Sample," (n = ", TotalSample, ")"))%>% # add a 
-#   # column where sample names are together with sample sizes
-#   ggplot(aes(x=NewSample, y=RelativeAbundance,  
-#              fill=factor(Taxon.bp, levels=ps.q.legend$Taxon.bp)))+
-#   geom_bar(stat = "identity")+ # barplot
-#   facet_grid(~class, # separate animal hosts
-#              scales="free",  # each species will have its own bars inside
-#              # facet (instead of all bars)
-#              space = "free", # bars will have same widths
-#              labeller = labeller(class=pretty.facet.labels))+ # labeller will
-#   # change facet labels to custom
-#   # guides(fill=guide_legend(ncol=1))+ # legend as one column
-#   coord_cartesian(expand=FALSE) +
-#   scale_fill_manual(values = col.vec,
-#                     labels=ps.q.legend$new.colors)+ # custom fill that is based on our 
-#   # custom palette
-#   xlab("") +
-#   ylab("Relative Abundance (%)")+
-#   labs(fill="Taxon",
-#        caption="Mean Relative Abundance was calculated for each host separately")+
-#   theme_bw()+
-#   ggtitle(paste(agglom.rank,"level gut microbiota profiles of fecal samples from different rodents"))+
-#   theme(plot.margin=unit(c(1,1,1,1.5), 'cm'),
-#         axis.line = element_blank(), #TODO: what does it do?
-#         strip.text.x = ggtext::element_markdown(size = 20),# the name of 
-#         # each facet will be recognised as a markdown object, so we can
-#         # add line breaks (cause host names are too long)
-#         panel.spacing = unit(0.8, "cm"), # increase distance between facets
-#         axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate 
-#         # the x-axis labels by 45 degrees and shift to the right
-#         axis.text.y = element_text(size=20), # size of y axis ticks
-#         axis.title = element_text(size = 20), # size of axis names
-#         plot.title = element_text(size = 25), # size of plot title
-#         plot.caption = element_text(size=23), # size of plot caption
-#         legend.text = element_markdown(size = 20), # size of legend text
-#         legend.title = element_text(size = 25), # size of legend title
-#         legend.position = "bottom") # legend under the plot
+mainplot<-ps.q.agg%>%
+  group_by(Sample)%>%
+  mutate(TotalSample=sum(Abundance))%>% # add total counts per sample,
+  # so we can have info about sample size
+  ungroup()%>%
+  mutate(class=factor(class,levels=custom.levels))%>% # change the order of
+  # our class column, so the NMR will be first
+  mutate(NewSample=paste0(Sample," (n = ", TotalSample, ")"))%>% # add a
+  # column where sample names are together with sample sizes
+  ggplot(aes(x=NewSample, y=RelativeAbundance,
+             fill=factor(Taxon.bp, levels=ps.q.legend$Taxon.bp)))+
+  geom_bar(stat = "identity")+ # barplot
+  facet_grid(~class, # separate animal hosts
+             scales="free",  # each species will have its own bars inside
+             # facet (instead of all bars)
+             space = "free", # bars will have same widths
+             labeller = labeller(class=pretty.facet.labels))+ # labeller will
+  # change facet labels to custom
+  # guides(fill=guide_legend(ncol=1))+ # legend as one column
+  coord_cartesian(expand=FALSE) +
+  scale_fill_manual(values = col.vec,
+                    labels=ps.q.legend$new.colors)+ # custom fill that is based on our
+  # custom palette
+  xlab("") +
+  ylab("Relative Abundance (%)")+
+  labs(fill="Taxon",
+       caption="Mean Relative Abundance was calculated for each host separately")+
+  theme_bw()+
+  ggtitle(paste(agglom.rank,"level gut microbiota profiles of fecal samples from different rodents"))+
+  theme(plot.margin=unit(c(1,1,1,1.5), 'cm'),
+        axis.line = element_blank(), #TODO: what does it do?
+        strip.text.x = ggtext::element_markdown(size = 20),# the name of
+        # each facet will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        panel.spacing = unit(0.8, "cm"), # increase distance between facets
+        axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate
+        # the x-axis labels by 45 degrees and shift to the right
+        axis.text.y = element_text(size=20), # size of y axis ticks
+        axis.title = element_text(size = 20), # size of axis names
+        plot.title = element_text(size = 25), # size of plot title
+        plot.caption = element_text(size=23), # size of plot caption
+        legend.text = element_markdown(size = 20), # size of legend text
+        legend.title = element_text(size = 25), # size of legend title
+        legend.position = "bottom") # legend under the plot
 # ggsave(paste0(barplot.directory,
 #               paste(Sys.Date(),"barplot",paste(custom.levels,collapse = '-'),
 #                     agglom.rank,sep = "-"),".png"),
@@ -575,3 +588,130 @@ for(i in seq_along(custom.levels)){
 # 
 # # Session Info
 # sessionInfo()
+
+akkermansia.plot<-ps.q.agg%>%
+  left_join(custom.md,by="Sample")%>%
+  group_by(Sample)%>%
+  filter(Species=="Akkermansia_muciniphila")%>%
+  ggplot(aes(x=Sample,y=RelativeAbundance))+
+  ylab("Relative Abundance (%)")+
+  geom_bar(stat="identity")+
+  ggtitle("Akkermansia muciniphila relative abundance")+
+  facet_grid(~age_group,scales = "free_x")+
+  theme_bw()+
+  theme(axis.line = element_blank(), 
+        strip.text.x = ggtext::element_markdown(size = 20),# the name of 
+        # each facet will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate 
+        # the x-axis labels by 45 degrees and shift to the right
+        axis.text.y = element_text(size=20), # size of y axis ticks
+        axis.title = element_text(size = 20), # size of axis names
+        plot.title = ggtext::element_markdown(size = 25), # the plot 
+        # title will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        plot.caption = element_text(size=23),# size of plot caption
+        legend.text = element_text(size = 20),# size of legend text
+        legend.title = element_text(size = 25), # size of legend title
+        legend.position = "right")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-akkermansia.plot",
+                    agglom.rank,sep = "-"),".png"),
+       plot=akkermansia.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "png")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-akkermansia.plot",
+                    agglom.rank,sep = "-"),".tiff"),
+       plot=akkermansia.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "tiff")
+
+
+campylobacter_jejuni.plot<-ps.q.agg%>%
+  left_join(custom.md,by="Sample")%>%
+  group_by(Sample)%>%
+  filter(Species=="Campylobacter_jejuni")%>%
+  ggplot(aes(x=Sample,y=RelativeAbundance))+
+  ylab("Relative Abundance (%)")+
+  geom_bar(stat="identity")+
+  ggtitle("Campylobacter jejuni relative abundance")+
+  facet_grid(~age_group,scales = "free_x")+
+  theme_bw()+
+  theme(axis.line = element_blank(), 
+        strip.text.x = ggtext::element_markdown(size = 20),# the name of 
+        # each facet will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate 
+        # the x-axis labels by 45 degrees and shift to the right
+        axis.text.y = element_text(size=20), # size of y axis ticks
+        axis.title = element_text(size = 20), # size of axis names
+        plot.title = ggtext::element_markdown(size = 25), # the plot 
+        # title will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        plot.caption = element_text(size=23),# size of plot caption
+        legend.text = element_text(size = 20),# size of legend text
+        legend.title = element_text(size = 25), # size of legend title
+        legend.position = "right")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-campylobacter_jejuni.plot",
+                    agglom.rank,sep = "-"),".png"),
+       plot=campylobacter_jejuni.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "png")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-campylobacter_jejuni.plot",
+                    agglom.rank,sep = "-"),".tiff"),
+       plot=campylobacter_jejuni.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "tiff")
+
+
+taxa.comparison.plot<-ps.q.agg%>%
+  left_join(custom.md,by="Sample")%>%
+  group_by(Sample)%>%
+  filter(Species=="Campylobacter_jejuni"| Species=="Akkermansia_muciniphila")%>%
+  ggplot(aes(x=Sample,y=RelativeAbundance))+
+  ylab("Relative Abundance (%)")+
+  geom_bar(stat="identity")+
+  ggtitle("Akkermansia muciniphila vs Campylobacter jejuni relative abundance")+
+  facet_grid(~Species,scales = "free_x")+
+  theme_bw()+
+  theme(axis.line = element_blank(), 
+        strip.text.x = ggtext::element_markdown(size = 20),# the name of 
+        # each facet will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate 
+        # the x-axis labels by 45 degrees and shift to the right
+        axis.text.y = element_text(size=20), # size of y axis ticks
+        axis.title = element_text(size = 20), # size of axis names
+        plot.title = ggtext::element_markdown(size = 25), # the plot 
+        # title will be recognised as a markdown object, so we can
+        # add line breaks (cause host names are too long)
+        plot.caption = element_text(size=23),# size of plot caption
+        legend.text = element_text(size = 20),# size of legend text
+        legend.title = element_text(size = 25), # size of legend title
+        legend.position = "right")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-taxa.comparison.plot",
+                    agglom.rank,sep = "-"),".png"),
+       plot=taxa.comparison.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "png")
+ggsave(paste0("./images/barplots/",
+              paste(Sys.Date(),"barplot","NMR-taxa.comparison.plot",
+                    agglom.rank,sep = "-"),".tiff"),
+       plot=taxa.comparison.plot,
+       width = 6000,height = 3000,
+       units = "px",dpi=300,device = "tiff")
+
+ps.q.agg%>%
+  left_join(custom.md,by="Sample")%>%
+  group_by(Sample)%>%
+  filter(Species=="Campylobacter_jejuni"| Species=="Akkermansia_muciniphila")%>%
+  ggplot(aes(x=Sample,y=RelativeAbundance))+
+  ylab("Relative Abundance (%)")+
+  geom_bar(stat="identity")+
+  ggtitle("Akkermansia muciniphila vs Campylobacter jejuni relative abundance")+
+  facet_grid(~Species,scales = "free_x")+
+  theme_bw()
