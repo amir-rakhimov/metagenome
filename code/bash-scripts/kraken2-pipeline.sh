@@ -3,11 +3,11 @@
 ### Remove the hyphen with sed (use global search with /g to remove all hyphens)
 ### Store as a variable date_var
 date_var=$(date -I|sed 's/-//g')
-# date_var=20240122
+# date_var=20240225
 ### kmer length for kraken2-build and braken-build
-kmer_len=35 
-minimizer_len=31
-minimizer_spaces=7
+kmer_len=25 
+minimizer_len=20
+minimizer_spaces=5
 ### 1. minimizer length l must be no more than 31 for nucleotide databases, and 15 for protein databases
 ### 2. minimizer length l must be no more than the k-mer length
 ### 3. minimizer_space is s<l/4
@@ -17,7 +17,7 @@ read_len=150
 nthreads=10
 source ~/miniconda3/etc/profile.d/conda.sh
 ### directory with database and taxonomy
-kraken2_db_dir=data/kraken2_db/k2_large_${date_var} 
+# kraken2_db_dir=data/kraken2_db/k2_large_${date_var} 
 # mkdir output/kraken2_pipeline/kraken2_reports
 # mkdir output/kraken2_pipeline/kraken2_output
 # mkdir output/kraken2_pipeline/bracken_reports
@@ -25,7 +25,7 @@ kraken2_db_dir=data/kraken2_db/k2_large_${date_var}
 # mkdir output/kraken2_pipeline/bracken_krona_txt
 # mkdir output/kraken2_pipeline/krona_html
 # mkdir output/fastqc_output
-# kraken2_db_dir=data/kraken2_db/k2_large_20240111
+kraken2_db_dir=data/kraken2_db/k2_large_20240209
 kraken2_reports_dir=output/kraken2_pipeline/kraken2_reports
 kraken2_output_dir=output/kraken2_pipeline/kraken2_output
 bracken_reports_dir=output/kraken2_pipeline/bracken_reports
@@ -53,15 +53,15 @@ conda activate kraken2-tools-2.1.3
 ## Download taxonomy
 # kraken2-build --download-taxonomy --db ${kraken2_db_dir}
 ## Download databases
-kraken2-build --download-library bacteria --db ${kraken2_db_dir}
-kraken2-build --download-library archaea --db ${kraken2_db_dir}
-kraken2-build --download-library viral --db ${kraken2_db_dir}
-kraken2-build --download-library human --db ${kraken2_db_dir}
-kraken2-build --download-library UniVec_Core --db ${kraken2_db_dir}
-kraken2-build --download-library fungi --db ${kraken2_db_dir}
-kraken2-build --download-library plant --db ${kraken2_db_dir}
-kraken2-build --download-library protozoa --db ${kraken2_db_dir}
-kraken2-build --download-library plasmid --db ${kraken2_db_dir}
+# kraken2-build --download-library bacteria --db ${kraken2_db_dir}
+# kraken2-build --download-library archaea --db ${kraken2_db_dir}
+# kraken2-build --download-library viral --db ${kraken2_db_dir}
+# kraken2-build --download-library human --db ${kraken2_db_dir}
+# kraken2-build --download-library UniVec_Core --db ${kraken2_db_dir}
+# kraken2-build --download-library fungi --db ${kraken2_db_dir}
+# kraken2-build --download-library plant --db ${kraken2_db_dir}
+# kraken2-build --download-library protozoa --db ${kraken2_db_dir}
+# kraken2-build --download-library plasmid --db ${kraken2_db_dir}
 ### nt is for fragments of novel organisms (e.g. 16S rRNA gene) that don't have full genomes
 # kraken2-build --download-library nt --db ${kraken2_db_dir}
 
@@ -87,23 +87,23 @@ bracken-build -d ${kraken2_db_dir} \
 # We need the database and FASTA file of sequences
 # kraken2 --db $DBNAME seqs.fq
 
-for FILE in ${bowtie2_decontam_fastq_dir}/*decontam_R1.fastq.gz
-do 
- SAMPLE=$(echo ${FILE} | sed "s/_decontam_R1\.fastq\.gz//")
- base_name=$(basename "$SAMPLE" )
- kraken2 --paired \
-	--db ${kraken2_db_dir} \
-	--threads ${nthreads} \
-	--minimum-hit-groups 3 \
-	--gzip-compressed \
-	${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R1.fastq.gz \
-	${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
-	--output ${kraken2_output_dir}/${date_var}_${base_name}.kraken2 \
-	--classified-out ${kraken2_output_dir}/${date_var}_${base_name}_classified_#.fq \
-	--report ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
-	--report-minimizer-data; #\
-# 	#--confidence ???;
-done
+# for FILE in ${bowtie2_decontam_fastq_dir}/*decontam_R1.fastq.gz
+# do 
+#  SAMPLE=$(echo ${FILE} | sed "s/_decontam_R1\.fastq\.gz//")
+#  base_name=$(basename "$SAMPLE" )
+#  kraken2 --paired \
+# 	--db ${kraken2_db_dir} \
+# 	--threads ${nthreads} \
+# 	--minimum-hit-groups 3 \
+# 	--gzip-compressed \
+# 	${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R1.fastq.gz \
+# 	${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
+# 	--output ${kraken2_output_dir}/${date_var}_${base_name}.kraken2 \
+# 	--classified-out ${kraken2_output_dir}/${date_var}_${base_name}_classified_#.fq \
+# 	--report ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
+# 	--report-minimizer-data; #\
+# # 	#--confidence ???;
+# done
 ### --db
 ### --threads
 ### -minimum-hit groups
@@ -135,21 +135,21 @@ do
 	--output ${kraken2_output_dir}/${date_var}_${base_name}_no_minimizer_data.kraken2 \
 	--classified-out ${kraken2_output_dir}/${date_var}_${base_name}_classified_#.fq \
 	--report ${kraken2_reports_dir}/${date_var}_${base_name}_no_minimizer_data.k2report ;
-done
+done >${date_var}_kraken2_stdout_no_minimizer_data.txt   
 
 # 3. Run bracken for abundance estimation of microbiome samples
-for FILE in ${kraken2_reports_dir}/${date_var}_*.k2report
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/\.k2report//"|sed "s/${date_var}_//")
-  base_name=$(basename "$SAMPLE" )
-  bracken -d ${kraken2_db_dir} \
-	-i ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
-	-r ${read_len} \
-	-l S \
-	-t 10 \
-	-o ${bracken_output_dir}/${date_var}_${base_name}.bracken \
-	-w ${bracken_reports_dir}/${date_var}_${base_name}.breport;
-done
+# for FILE in ${kraken2_reports_dir}/${date_var}_*.k2report
+# do 
+#   SAMPLE=$(echo ${FILE} | sed "s/\.k2report//"|sed "s/${date_var}_//")
+#   base_name=$(basename "$SAMPLE" )
+#   bracken -d ${kraken2_db_dir} \
+# 	-i ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
+# 	-r ${read_len} \
+# 	-l S \
+# 	-t 10 \
+# 	-o ${bracken_output_dir}/${date_var}_${base_name}.bracken \
+# 	-w ${bracken_reports_dir}/${date_var}_${base_name}.breport;
+# done
 ### -d
 ### -i
 ### -r is read length
@@ -172,7 +172,7 @@ do
 	-t 10 \
 	-o ${bracken_output_dir}/${date_var}_${base_name}_no_minimizer_data.bracken \
 	-w ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport;
-done
+done > ${date_var}_bracken_stdout_no_minimizer_data.txt
 #FILE: testdir/20230104_f1.txt
 #SAMPLE: testdir/f1
 #base_name: f1
@@ -229,16 +229,16 @@ done
 #     -o ${kraken2_reports_dir}/${date_var}_${base_name}_no_minimizer_data.mpa.tsv \
 # 	--display-header;
 # done
-for FILE in ${bracken_reports_dir}/${date_var}_*_no_minimizer_data.breport
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/\.breport//"|sed "s/${date_var}_//"|sed "s/_no_minimizer_data//")
-  base_name=$(basename "$SAMPLE" )
-  kreport2mpa.py -r ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport \
-    -o ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport.mpa.tsv \
-	--display-header;
-done
+# for FILE in ${bracken_reports_dir}/${date_var}_*_no_minimizer_data.breport
+# do 
+#   SAMPLE=$(echo ${FILE} | sed "s/\.breport//"|sed "s/${date_var}_//"|sed "s/_no_minimizer_data//")
+#   base_name=$(basename "$SAMPLE" )
+#   kreport2mpa.py -r ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport \
+#     -o ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport.mpa.tsv \
+# 	--display-header;
+# done
 
 
-combine_mpa.py -i ${bracken_reports_dir}/${date_var}_*_no_minimizer_data.breport.mpa.tsv \
-	-o ${bracken_reports_dir}/${date_var}_combined_mpa.tsv
+# combine_mpa.py -i ${bracken_reports_dir}/${date_var}_*_no_minimizer_data.breport.mpa.tsv \
+# 	-o ${bracken_reports_dir}/${date_var}_combined_mpa.tsv
 
