@@ -5,7 +5,6 @@ library(tidyverse)
 # )
 library(microViz)
 library(phyloseq)
-asvlevel=FALSE
 agglom.rank<-"Species"
 metadatadir<-paste0("../amplicon_nmr/data/metadata/pooled-metadata/") # directory with metadata
 
@@ -34,6 +33,11 @@ custom.md<-custom.md%>%
   filter(Sample%in%colnames(combined.report))%>%
   column_to_rownames(var = "Sample")%>%
   select(-absolute.filepath)
+custom.md$class<-as.factor(custom.md$class)
+custom.md$animal<-as.factor(custom.md$animal)
+custom.md$sex<-as.factor(custom.md$sex)
+custom.md$birthday<-as.Date(custom.md$birthday)
+custom.md$age<-year(as.period(interval(custom.md$birthday,now())))
 # table(grepl('k__',combined.report$Kingdom))
 # table(grepl('p__|NA',combined.report$Phylum))
 # table(grepl('c__|NA',combined.report$Class))
@@ -106,7 +110,7 @@ ps.q<-phyloseq(otu_table(df.otus,taxa_are_rows = TRUE),
                tax_table(df.taxa),
                sample_data(custom.md))
 
-if (asvlevel==TRUE){
+if (agglom.rank=="Species"|agglom.rank=="OTU"){
   ps.q.agg<-ps.q %>%
     psmelt()  # transform the phyloseq object into an R dataframe
 }else{
@@ -130,18 +134,22 @@ ps.q.agg<-ps.q.agg%>%
 # Sanity check: is total relative abundance of each sample 100%?
 ps.q.agg %>%
   group_by(Sample) %>% # Group by sample id
-  summarise(RelativeAbundance = sum(RelativeAbundance)) %>% # Sum all abundances
-  pull(RelativeAbundance) %>% # get only a vector of numbers
+  summarise(sumRelativeAbundance = sum(RelativeAbundance)) %>% # Sum all abundances
+  pull(sumRelativeAbundance) %>% # get only a vector of numbers
   `==`(100) %>% # compare each value to 100 (TRUE/FALSE)
   all() # get one TRUE/FALSE value
+
+ps.q.agg %>%
+  mutate(sumRelativeAbundance = sum(RelativeAbundance)) %>%
+  ggplot(aes(x=Sample,y=sumRelativeAbundance))+
+  geom_bar(stat="identity")
 
 # Group the dataframe by classes (animal hosts)
 classcol<-which(colnames(ps.q.agg) =="class")
 # find a column by which we agglomerated the dataset
-# for ASV, we actually use Species
 # We find the column index because we can derive the previous taxonomic 
 # rank with a simple agglom.rank.col-1.
-if(agglom.rank=="OTU"){
+if(agglom.rank=="Species"|agglom.rank=="OTU"){
   agglom.rank.col<-which(colnames(ps.q.agg) =="Species")
 }else{
   agglom.rank.col<-which(colnames(ps.q.agg) ==agglom.rank)
@@ -149,7 +157,7 @@ if(agglom.rank=="OTU"){
 
 # for each class, we take a agglom.rank, sum its abundances from all samples,
 # then take a mean. This will be our MeanRelativeAbundance
-if(asvlevel==TRUE){
+if(agglom.rank=="Species"|agglom.rank=="OTU"){
   ps.q.agg<-ps.q.agg%>%
     group_by(class)%>% # group by class (animal host),
     mutate(TotalClass=sum(Abundance))%>%
@@ -166,7 +174,7 @@ if(asvlevel==TRUE){
 ps.q.agg<-ps.q.agg%>%
   select(-TotalClass,-TotalSample)
 
-objects.to.keep<-c("agglom.rank","ps.q.agg","asvlevel","custom.md")
+objects.to.keep<-c("agglom.rank","ps.q.agg","custom.md")
 objects.to.keep<-which(ls()%in%objects.to.keep)
 rm(list = ls()[-objects.to.keep])
 # Save the workspace
@@ -175,3 +183,4 @@ save.image(paste0("./output/rdafiles/",paste("kraken2",
                                              "phyloseq-workspace.RData",sep = "-")))
 
 sessionInfo()
+
