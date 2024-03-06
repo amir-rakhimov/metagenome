@@ -11,10 +11,12 @@ taxonomy_data = {"Abundance": [],
                  "Family": [], 
                  "Genus": [],
                  "Species": []}
-
-filename="./output/bracken_krona_txt/20240122_H4_wms.b.krona.txt"
+sample_name="H3"
+filename_dir="output/kraken2_pipeline/bracken_krona_txt/"
+input_filename=filename_dir+"20240122_"+sample_name+"_wms.b.krona.txt"
+output_filename=filename_dir+"20240122_"+sample_name+"_wms_table.tsv"
 # Open the file and read its content.
-with open(filename) as f:
+with open(input_filename) as f:
     content = f.read().splitlines()
 
 # Display the file's content line by line.
@@ -57,5 +59,5 @@ df = pd.DataFrame(taxonomy_data)
 
 
 # Save the DataFrame to a new CSV file with missing values as NA
-df.to_csv("H4_wms_table.tsv", index=False,sep="\t")
+df.to_csv(output_filename, index=False,sep="\t")
 
