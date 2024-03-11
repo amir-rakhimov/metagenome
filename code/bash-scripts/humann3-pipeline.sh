@@ -170,7 +170,7 @@ do
     echo "${maaslin2_feaure}"
     humann_barplot --input ${humann_merged_out_dir}/${date_var}_humann_out_genefamilies-cpm-rxn-named_copy.tsv \
 	    --focal-metadata age_group --last-metadata age_group \
-      --output images/gene_family/gene_family_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
+      --output images/humann3_images/gene_family/gene_family_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
 	    --sort sum metadata
 done
 
@@ -183,7 +183,7 @@ do
     echo "${maaslin2_feaure}"
     humann_barplot --input ${humann_merged_out_dir}/${date_var}_humann_out_pathabundance-cpm_copy.tsv \
 	    --focal-metadata age_group --last-metadata age_group \
-        --output images/pathway/pathway_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
+        --output images/humann3_images/pathway/pathway_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
 	    --sort sum metadata;
 done
 
@@ -199,7 +199,7 @@ do
     echo "${maaslin2_feaure}"
     humann_barplot --input ${humann_merged_out_dir}/${date_var}_humann_out_genefamilies-cpm-rxn-named_copy.tsv \
 	    --focal-metadata age_group --last-metadata age_group \
-      --output images/gene_family/gene_family_${maaslin2_feaure}.tiff --focal-feature ${maaslin2_feaure} \
+      --output images/humann3_images/gene_family/gene_family_${maaslin2_feaure}.tiff --focal-feature ${maaslin2_feaure} \
 	    --sort sum metadata;
 done
 
@@ -212,6 +212,6 @@ do
     echo "${maaslin2_feaure}"
     humann_barplot --input ${humann_merged_out_dir}/${date_var}_humann_out_pathabundance-cpm_copy.tsv \
 	    --focal-metadata age_group --last-metadata age_group \
-        --output images/pathway/pathway_${maaslin2_feaure}.tiff --focal-feature ${maaslin2_feaure} \
+        --output images/humann3_images/pathway/pathway_${maaslin2_feaure}.tiff --focal-feature ${maaslin2_feaure} \
 	    --sort sum metadata;
 done

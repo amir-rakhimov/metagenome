@@ -181,7 +181,10 @@ kraken2 --db minikraken2_v1_8GB \
   m_samples/SRR14143424_pass_2.fastq.gz \
   > kraken_outputs/SRR14143424.kraken2
 
-
+# Loading database information...   done.
+# 60431111 sequences (14461.89 Mbp) processed in 355.423s (10201.6 Kseq/m, 2441.36 Mbp/m).
+# 22429192 sequences classified (37.12%)
+# 38001919 sequences unclassified (62.88%)
 ## no minimizer data
 kraken2 --db minikraken2_v1_8GB \
   --threads 8 \
@@ -233,6 +236,12 @@ bracken -d minikraken2_v1_8GB \
   -o bracken_outputs/SRR14143424_no_minimizer_data.bracken \
   -w breports/SRR14143424_no_minimizer_data.breport
 
+
+bracken -d minikraken2_v1_8GB \
+  -i kreports/SRR14143424_no_minimizer_data.k2report -r 100 -l G -t 10 \
+  -o bracken_outputs/SRR14143424_no_minimizer_data_G.bracken \
+  -w breports/SRR14143424_no_minimizer_data_G.breport
+
 bracken -d minikraken2_v1_8GB \
   -i kreports/SRR14092160_no_minimizer_data.k2report -r 100 -l S -t 10 \
   -o bracken_outputs/SRR14092160_no_minimizer_data.bracken \
@@ -282,6 +291,8 @@ kreport2mpa.py -r breports/SRR14092310_no_minimizer_data.breport \
   -o breports/SRR14092310_breport_no_minimizer_data.mpa.txt
 kreport2mpa.py -r breports/SRR14143424_no_minimizer_data.breport \
   -o breports/SRR14143424_breport_no_minimizer_data.mpa.txt
+
+
 # combine_mpa.py combines multiple outputs from kreport2mpa.py: can also use on bracken
 combine_mpa.py -i kreports/*_no_minimizer_data.mpa.txt -o kreports/combined_mpa.txt
 combine_mpa.py -i breports/*_no_minimizer_data.mpa.txt -o breports/bracken_combined_mpa.txt
@@ -315,6 +326,8 @@ mkdir b_krona_txt
 mkdir krona_html
 kreport2krona.py -r breports/SRR14143424.breport \
 -o b_krona_txt/SRR14143424.b.krona.txt --no-intermediate-ranks
+kreport2krona.py -r breports/SRR14143424_no_minimizer_data.breport \
+-o b_krona_txt/SRR14143424_no_minimizer_data.b.krona.txt --no-intermediate-ranks
 ktImportText b_krona_txt/SRR14143424.b.krona.txt \
 -o krona_html/SRR14143424.krona.html
 kreport2krona.py -r breports/SRR14092160.breport \

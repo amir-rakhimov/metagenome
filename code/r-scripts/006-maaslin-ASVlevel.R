@@ -136,7 +136,7 @@ ps.q.df.maaslin.input.wide<-ps.q.df.maaslin.input.wide[,-c(1:4)]
 # 3.2 Running MaAsLin 2 ####
 if (comparison=="age"){
   maaslin.reference<-paste("age_group",ref.level,sep = ",")
-  maaslin.comparison<-"age_group"
+  maaslin.comparison<-c("age_group","sex")
 }else if(comparison=="sex"){
   maaslin.reference<-paste("sex","F",sep = ",")
   maaslin.comparison<-"sex"
@@ -153,12 +153,12 @@ maaslin.fit_data =
            normalization = "TSS",
            transform = "AST",
            analysis_method = "LM",
-           random_effects = NULL,
+           random_effects = relation, #TODO: fix
            standardize = FALSE,
            output = paste0("./output/maaslin2/","kraken2","-output/",
                           rare.status,"/",paste(host,filter.status,agglom.rank,
                                                 comparison,
-                                                ref.level,sep="-")), 
+                                                ref.level,"sexfixed",sep="-")), 
            fixed_effects = maaslin.comparison,
            reference = maaslin.reference,
            max_significance = 0.05)

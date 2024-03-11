@@ -3,15 +3,19 @@
 ### Remove the hyphen with sed (use global search with /g to remove all hyphens)
 ### Store as a variable date_var
 date_var=$(date -I|sed 's/-//g')
-# date_var=20240225
+# date_var=20240307
 ### kmer length for kraken2-build and braken-build
-kmer_len=25 
+kmer_len=25
 minimizer_len=20
 minimizer_spaces=5
 ### 1. minimizer length l must be no more than 31 for nucleotide databases, and 15 for protein databases
 ### 2. minimizer length l must be no more than the k-mer length
 ### 3. minimizer_space is s<l/4
 ### 4. default kmer=35, l=31, s=7
+### confidence for kraken2:
+confidence_kraken2=0.1
+### threshold for bracken
+bracken_threshold=10
 ### read length for kraken2-build and bracken:
 read_len=150
 nthreads=10
@@ -25,7 +29,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # mkdir output/kraken2_pipeline/bracken_krona_txt
 # mkdir output/kraken2_pipeline/krona_html
 # mkdir output/fastqc_output
-kraken2_db_dir=data/kraken2_db/k2_large_20240209
+kraken2_db_dir=data/kraken2_db/k2_large_20240307
 kraken2_reports_dir=output/kraken2_pipeline/kraken2_reports
 kraken2_output_dir=output/kraken2_pipeline/kraken2_output
 bracken_reports_dir=output/kraken2_pipeline/bracken_reports
@@ -101,8 +105,8 @@ bracken-build -d ${kraken2_db_dir} \
 # 	--output ${kraken2_output_dir}/${date_var}_${base_name}.kraken2 \
 # 	--classified-out ${kraken2_output_dir}/${date_var}_${base_name}_classified_#.fq \
 # 	--report ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
-# 	--report-minimizer-data; #\
-# # 	#--confidence ???;
+# 	--report-minimizer-data \
+#	--confidence ${confidence_kraken2};
 # done
 ### --db
 ### --threads
@@ -134,7 +138,8 @@ do
 	${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
 	--output ${kraken2_output_dir}/${date_var}_${base_name}_no_minimizer_data.kraken2 \
 	--classified-out ${kraken2_output_dir}/${date_var}_${base_name}_classified_#.fq \
-	--report ${kraken2_reports_dir}/${date_var}_${base_name}_no_minimizer_data.k2report ;
+	--report ${kraken2_reports_dir}/${date_var}_${base_name}_no_minimizer_data.k2report \
+	--confidence ${confidence_kraken2};
 done >${date_var}_kraken2_stdout_no_minimizer_data.txt   
 
 # 3. Run bracken for abundance estimation of microbiome samples
@@ -146,7 +151,7 @@ done >${date_var}_kraken2_stdout_no_minimizer_data.txt
 # 	-i ${kraken2_reports_dir}/${date_var}_${base_name}.k2report \
 # 	-r ${read_len} \
 # 	-l S \
-# 	-t 10 \
+# 	-t ${bracken_threshold} \
 # 	-o ${bracken_output_dir}/${date_var}_${base_name}.bracken \
 # 	-w ${bracken_reports_dir}/${date_var}_${base_name}.breport;
 # done
@@ -169,7 +174,7 @@ do
 	-i ${kraken2_reports_dir}/${date_var}_${base_name}_no_minimizer_data.k2report \
 	-r ${read_len} \
 	-l S \
-	-t 10 \
+	-t ${bracken_threshold} \
 	-o ${bracken_output_dir}/${date_var}_${base_name}_no_minimizer_data.bracken \
 	-w ${bracken_reports_dir}/${date_var}_${base_name}_no_minimizer_data.breport;
 done > ${date_var}_bracken_stdout_no_minimizer_data.txt
