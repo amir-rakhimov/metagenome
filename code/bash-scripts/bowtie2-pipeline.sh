@@ -79,9 +79,15 @@ for FILE in ${bowtie2_output_sam_dir}/*mapped_and_unmapped.sam
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_mapped_and_unmapped\.sam//")
   base_name=$(basename "$SAMPLE" )
-  samtools view -bS ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam > \
+  samtools view -b ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam > \
     ${bowtie2_output_bam_dir}/${base_name}_mapped_and_unmapped.bam;
 done
+# samtools view – views and converts SAM/BAM/CRAM files
+# -b, --bam :Output in the BAM format.
+# -S : Ignored for compatibility with previous samtools versions. 
+  # Previously this option was required if input was in SAM format, but
+  #  now the correct format is automatically detected by examining the first few characters of input.
+
 
 ## 1.3 Filter unmapped reads (unmapped to host genome)
 ### SAMtools SAM-flag filter: get unmapped pairs (both reads R1 and R2 unmapped)
@@ -106,11 +112,20 @@ do
   samtools sort -n -m ${mem_req_sort} -@ ${nthreads_sort} \
   ${bowtie2_filtered_bam_dir}/${base_name}_bothReadsUnmapped.bam \
     -o ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam
-  samtools fastq -@ ${nthreads_sort} ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam \
+  samtools fastq -@ ${nthreads_sort} \
+    ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam \
   	-1 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R1.fastq.gz \
   	-2 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
   	-0 /dev/null -s /dev/null -n;
 done
+
+# samtools sort: Sort alignments by leftmost coordinates, 
+#  by read name when -n or -N are used,
+#  by tag contents with -t,
+#  or a minimiser-based collation order with -M.
+# -m : Approximately the maximum required memory per thread
+# samtools fastq: Converts a BAM or CRAM into either FASTQ or FASTA format
+#  depending on the command invoked
 
 # 2. Run FastQC and MultiQC on decontaminated data as a final check
 # fastqc ${bowtie2_decontam_fastq_dir}/2D10_wms_decontam_R1.fastq.gz --outdir fastqc_output
