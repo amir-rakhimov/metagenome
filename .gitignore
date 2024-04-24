@@ -5,8 +5,8 @@
 .DS_Store
 .quarto
 images/
-02.Report_X207SC23100349-Z01-F001
 output/
+02.Report_X207SC23100349-Z01-F001
 02.Report_X207SC23100349-Z01-F001.zip
-./code/bash-scripts/*tutorial.sh
-code/bash-scripts/humann3_tutorial.sh
+code/bash-scripts/*tutorial.sh
+code/bash-scripts/metaquast*
