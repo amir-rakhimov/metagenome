@@ -8,48 +8,33 @@ library(phyloseq)
 agglom.rank<-"Species"
 metadatadir<-paste0("../amplicon_nmr/data/metadata/pooled-metadata/") # directory with metadata
 
-combined.report.filename<-"output/kraken2_pipeline/kraken2_reports/20240122_combined_mpa_clean.tsv"
-
+date_time="20240505_19_11_27"
+# combined.report.filename<-file.path("output/kraken2_pipeline/kraken2_reports",
+#                                     paste(date_time,"combined_mpa_clean.tsv",sep = "_"))
+combined.report.filename<-file.path("output/rtables",
+                                    paste(date_time,"combined_report.tsv",sep = "_"))
 combined.report<-read.table(combined.report.filename, 
-           header = T, 
-           sep = "\t",
-           fill=TRUE,
-           quote = "", 
-           comment.char = "@",
-           na.strings = c("","NA"))
+            header = T, 
+            sep = "\t",
+            fill=TRUE,
+            quote = "", 
+            comment.char = "@",
+            na.strings = c("","NA"))
+colnames(combined.report)<-gsub("X2D10","2D10",colnames(combined.report))
+colnames(combined.report)<-gsub("X2D14","2D14",colnames(combined.report))
+
 dim(combined.report)
 head(combined.report)
-combined.report[is.na(combined.report)]<-"NA"
-colnames(combined.report)<-gsub("X20240122_","",colnames(combined.report))
-colnames(combined.report)<-
-  gsub("_wms_no_minimizer_data.k2report","",colnames(combined.report))
 
-# Create metadata
-metadata.filename<-paste0(metadatadir,
-                          paste("filenames-single-pooled-raw-supercomp.tsv", sep = "-"))
-custom.md<-read.table(metadata.filename, header = T)
-colnames(custom.md)[1]<-"Sample" # set the first column name as Sample
-custom.md<-custom.md%>%
-  filter(Sample%in%colnames(combined.report))%>%
-  column_to_rownames(var = "Sample")%>%
-  select(-absolute.filepath)
-custom.md$class<-as.factor(custom.md$class)
-custom.md$animal<-as.factor(custom.md$animal)
-custom.md$sex<-as.factor(custom.md$sex)
-custom.md$birthday<-as.Date(custom.md$birthday)
-custom.md$age<-year(as.period(interval(custom.md$birthday,now())))
-# table(grepl('k__',combined.report$Kingdom))
-# table(grepl('p__|NA',combined.report$Phylum))
-# table(grepl('c__|NA',combined.report$Class))
-# table(grepl('o__|NA',combined.report$Order))
-# table(grepl('f__|NA',combined.report$Family))
-# table(grepl('g__|NA',combined.report$Genus))
-# table(grepl('s__|NA',combined.report$Species))
-
+# all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
+# combined.report[,all.ranks][is.na(combined.report[,all.ranks])]<-"NA"
+# combined.report[,-which(names(combined.report)%in%all.ranks)][is.na(combined.report[,-which(names(combined.report)%in%all.ranks)])]<-0
 
 df.otus<-combined.report%>%
   unite("OTU",Kingdom:Species,sep = "|")%>%
   column_to_rownames("OTU")
+
+df.otus[is.na(df.otus)]<-0
 
 df.taxa<-combined.report%>%
   select(Kingdom:Species)%>%
@@ -70,40 +55,27 @@ df.taxa$Genus<-
   gsub("g__","",df.taxa$Genus)
 df.taxa$Species<-
   gsub("s__","",df.taxa$Species)
-df.taxa$Kingdom<-
-  gsub("EukaryotaFungi","Fungi",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("EukaryotaMetazoa","Metazoa",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("EukaryotaViridiplantae","Viridiplantae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesBamfordvirae","Viruses_Bamfordvirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesHelvetiavirae","Viruses_Helvetiavirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesHeunggongvirae","Viruses_Heunggongvirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesLoebvirae","Viruses_Loebvirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesOrthornavirae","Viruses_Orthornavirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesPararnavirae","Viruses_Pararnavirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesSangervirae","Viruses_Sangervirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesShotokuvirae","Viruses_Shotokuvirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesTrapavirae","Viruses_Trapavirae",df.taxa$Kingdom)
-df.taxa$Kingdom<-
-  gsub("VirusesZilligvirae","Viruses_Zilligvirae",df.taxa$Kingdom)
-
-table(df.taxa$Kingdom)
 # Convert into phyloseq taxonomyTable object
 df.taxa<-tax_table(as.matrix(df.taxa))
 
 df.taxa.pretty<-tax_fix(df.taxa)
 df.taxa<-df.taxa.pretty
 rm(df.taxa.pretty)
+
+# Create metadata
+metadata.filename<-paste0(metadatadir,
+                          paste("filenames-single-pooled-raw-supercomp.tsv", sep = "-"))
+custom.md<-read.table(metadata.filename, header = T)
+colnames(custom.md)[1]<-"Sample" # set the first column name as Sample
+custom.md<-custom.md%>%
+  filter(Sample%in%colnames(combined.report))%>%
+  column_to_rownames(var = "Sample")%>%
+  select(-absolute.filepath)
+custom.md$class<-as.factor(custom.md$class)
+custom.md$animal<-as.factor(custom.md$animal)
+custom.md$sex<-as.factor(custom.md$sex)
+custom.md$birthday<-as.Date(custom.md$birthday)
+custom.md$age<-year(as.period(interval(custom.md$birthday,now())))
 
 # Create a phyloseq object
 ps.q<-phyloseq(otu_table(df.otus,taxa_are_rows = TRUE),
@@ -161,13 +133,17 @@ if(agglom.rank=="Species"|agglom.rank=="OTU"){
   ps.q.agg<-ps.q.agg%>%
     group_by(class)%>% # group by class (animal host),
     mutate(TotalClass=sum(Abundance))%>%
-    mutate(MeanRelativeAbundance = Abundance/TotalClass*100)
+    group_by_at(c("class",agglom.rank))%>%
+    mutate(TotalAgglomRank=sum(Abundance))%>%
+    mutate(MeanRelativeAbundance=TotalAgglomRank/TotalClass*100)
 }else{ 
   ps.q.agg<-ps.q.agg%>%
     group_by(class)%>% # group by class,
     # compute MeanRelativeAbundance from Abundance 
     mutate(TotalClass=sum(Abundance))%>%
-    mutate(MeanRelativeAbundance = Abundance/TotalClass*100)%>%
+    group_by_at(c("class",agglom.rank))%>%
+    mutate(TotalAgglomRank=sum(Abundance))%>%
+    mutate(MeanRelativeAbundance=TotalAgglomRank/TotalClass*100)%>%
     select(-OTU)
 }
 
@@ -178,9 +154,10 @@ objects.to.keep<-c("agglom.rank","ps.q.agg","custom.md")
 objects.to.keep<-which(ls()%in%objects.to.keep)
 rm(list = ls()[-objects.to.keep])
 # Save the workspace
-save.image(paste0("./output/rdafiles/",paste("kraken2",
-                                             agglom.rank,
-                                             "phyloseq-workspace.RData",sep = "-")))
+save.image(file.path("./output/rdafiles",paste(
+  paste(format(Sys.time(),format="%Y%m%d"),
+        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+  "kraken2",agglom.rank,
+  "phyloseq-workspace.RData",sep = "-")))
 
 sessionInfo()
-
