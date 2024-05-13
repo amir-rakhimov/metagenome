@@ -4,9 +4,13 @@
 .httr-oauth
 .DS_Store
 .quarto
+data/
 images/
 output/
 02.Report_X207SC23100349-Z01-F001
 02.Report_X207SC23100349-Z01-F001.zip
 code/bash-scripts/*tutorial.sh
 code/bash-scripts/metaquast*
+*.gz
+*-out.txt
+*stdout*.txt
