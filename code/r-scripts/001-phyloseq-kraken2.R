@@ -8,7 +8,7 @@ library(phyloseq)
 agglom.rank<-"Species"
 metadatadir<-paste0("../amplicon_nmr/data/metadata/pooled-metadata/") # directory with metadata
 
-date_time="20240505_19_11_27"
+date_time="20240515_10_04_04"
 # combined.report.filename<-file.path("output/kraken2_pipeline/kraken2_reports",
 #                                     paste(date_time,"combined_mpa_clean.tsv",sep = "_"))
 combined.report.filename<-file.path("output/rtables",
@@ -75,7 +75,8 @@ custom.md$class<-as.factor(custom.md$class)
 custom.md$animal<-as.factor(custom.md$animal)
 custom.md$sex<-as.factor(custom.md$sex)
 custom.md$birthday<-as.Date(custom.md$birthday)
-custom.md$age<-year(as.period(interval(custom.md$birthday,now())))
+# calculate age at the time when data was received
+custom.md$age<-year(as.period(interval(custom.md$birthday,as.Date("2023-11-16"))))
 
 # Create a phyloseq object
 ps.q<-phyloseq(otu_table(df.otus,taxa_are_rows = TRUE),
