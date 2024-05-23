@@ -3,7 +3,6 @@ library(tidyverse)
 #   "microViz",
 #   repos = c(davidbarnett = "https://david-barnett.r-universe.dev", getOption("repos"))
 # )
-agglom.rank<-"Species"
 metadatadir<-paste0("../amplicon_nmr/data/metadata/pooled-metadata/") # directory with metadata
 
 date_time="20240409_17_32_40_"
