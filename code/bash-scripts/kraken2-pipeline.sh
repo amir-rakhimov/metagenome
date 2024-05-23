@@ -111,7 +111,10 @@ conda activate kraken2-tools-2.1.3
 # 	--classified-out ${kraken2_output_dir}/${date_time}_${base_name}_classified_#.fq \
 # 	--report ${kraken2_reports_dir}/${date_time}_${base_name}.k2report \
 # 	--report-minimizer-data \
-#	--confidence ${confidence_kraken2};
+# 	--confidence ${confidence_kraken2}
+#  gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}.kraken2
+#  gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__1.fq
+#  gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__2.fq;
 # done
 ### --db
 ### --threads
@@ -144,7 +147,10 @@ do
 	--output ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2 \
 	--classified-out ${kraken2_output_dir}/${date_time}_${base_name}_classified_#.fq \
 	--report ${kraken2_reports_dir}/${date_time}_${base_name}_no_minimizer_data.k2report \
-	--confidence ${confidence_kraken2};
+	--confidence ${confidence_kraken2}
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__1.fq
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__2.fq;
 done  2>&1 |tee ${date_time}_kraken2_stdout_no_minimizer_data.txt   
 
 # 3. Run bracken for abundance estimation of microbiome samples
@@ -181,7 +187,8 @@ do
 	-l S \
 	-t ${bracken_threshold} \
 	-o ${bracken_output_dir}/${date_time}_${base_name}_no_minimizer_data.bracken \
-	-w ${bracken_reports_dir}/${date_time}_${base_name}_no_minimizer_data.breport;
+	-w ${bracken_reports_dir}/${date_time}_${base_name}_no_minimizer_data.breport
+  gzip -9 --best ${kraken2_reports_dir}/${date_time}_${base_name}_no_minimizer_data.k2report;
 done 2>&1 |tee ${date_time}_bracken_stdout_no_minimizer_data.txt
 #FILE: testdir/20230104_f1.txt
 #SAMPLE: testdir/f1
