@@ -3,6 +3,8 @@ import re
 import argparse
 import sys
 
+# bracken_krona_txt_dir=output/kraken2_pipeline/bracken_krona_txt
+# date_time=20240409_17_32_40
 # for FILE in ${bracken_krona_txt_dir}/${date_time}_*_trim_no_minimizer_data.b.krona.txt
 # do 
 #  SAMPLE=$(echo ${FILE} | sed "s/\.b.krona.txt//"|sed "s/${date_time}_//"|sed "s/_no_minimizer_data//")
