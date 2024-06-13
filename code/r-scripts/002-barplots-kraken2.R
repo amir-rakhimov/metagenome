@@ -12,11 +12,11 @@ library(ggtext)
 agglom.rank<-"Species" # this is the taxonomic rank that was used for agglomeration
 barplot.directory<-"./images/barplots/" # set the path where barplots will
 # be saved
-
+date_time<-"20240518_13_40_08"
 # Load the Workspace from phyloseq (output of 001-phyloseq-qiime2.R)
-load(paste0("./output/rdafiles/",paste("kraken2",
-                                       agglom.rank,
-                                       "phyloseq-workspace.RData",sep = "-")))
+load(file.path("./output/rdafiles",paste(
+  date_time,"kraken2",agglom.rank,
+  "phyloseq-workspace.RData",sep = "-")))
 
 # Pretty labels for barplot facets that correspond to animal hosts. Here,
 # the left side of the vector (values) is taken from the metadata, while
@@ -142,8 +142,6 @@ if(agglom.rank=="OTU"){
 }
 # remove Metazoa (contamination)
 ps.q.agg<-ps.q.agg%>%
-  mutate(Kingdom=replace(Kingdom,grepl("Viruses",Kingdom),"Viruses"))%>%
-  filter(Kingdom!="Metazoa")%>%
   group_by(Sample)%>%
   mutate(RelativeAbundance=Abundance/sum(Abundance)*100)%>%
   group_by_at(c(classcol,agglom.rank.col,agglom.rank.col-1))%>% # group by class,
@@ -152,7 +150,7 @@ ps.q.agg<-ps.q.agg%>%
   mutate(MeanRelativeAbundance = mean(RelativeAbundance))
 
 # Relative abundance per kingdom (including bacteria)
-unclassified_reads<-read.table("./output/kraken2_pipeline/unclassified_reads.tsv",
+unclassified_reads<-read.table("./output/kraken2_pipeline/20240409_17_32_40_unclassified_reads.tsv",
                                header = T)
 colnames(unclassified_reads)[which(colnames(unclassified_reads)=="Unclassified")]<-"Abundance"
 unclassified_reads$Kingdom<-"Unclassified"
@@ -191,18 +189,17 @@ kingdom.plot.with_bact<-ps.q.agg%>%
         legend.position = "none") # legend on the right
 
 # save the plots: kingdom.plot.with_bact
-ggsave(paste0(barplot.directory,
-                paste(Sys.Date(),custom.levels,"kingdom.plot.with_unclas",
-                      sep = "-"),".png"),
+for(image.format in image.formats){
+  ggsave(paste0(barplot.directory,
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      custom.levels,"kingdom.plot.with_unclas",
+                      sep = "-"),".",image.format),
          plot=kingdom.plot.with_bact,
          width = 5000,height = 3000,
-         units = "px",dpi=300,device = "png")
-ggsave(paste0(barplot.directory,
-              paste(Sys.Date(),custom.levels,"kingdom.plot.with_unclas",
-                    sep = "-"),".tiff"),
-       plot=kingdom.plot.with_bact,
-       width = 5000,height = 3000,
-       units = "px",dpi=300,device = "tiff")
+         units = "px",dpi=300,device = image.format)
+}
+
 # Check library size per sample
 ps.q.agg%>%group_by(Sample)%>%
   summarise(TotalSample=sum(Abundance))%>%
@@ -265,9 +262,6 @@ plot.cols<-createPalette(length(taxa.for_bp.list)-1,
 
 # Decrease alpha for unclassified
 plot.cols<-c("#C1CDCD",plot.cols)
-plot.cols[which(taxa.for_bp.list%in%unclassified.taxa.sorted)]<-
-  adjustcolor(plot.cols[which(taxa.for_bp.list%in%unclassified.taxa.sorted)],
-              alpha.f = 0.5)
 
 col.vec<-setNames(plot.cols,ps.q.legend$Taxon.bp)
 # Create the barplot with ggplot2. First, we take the agglomerated
@@ -337,19 +331,18 @@ mainplot<-ps.q.agg%>%
         legend.text = element_markdown(size = 20), # size of legend text
         legend.title = element_text(size = 25), # size of legend title
         legend.position = "bottom") # legend under the plot
-# ggsave(paste0(barplot.directory,
-#               paste(Sys.Date(),"barplot",paste(custom.levels,collapse = '-'),
-#                     agglom.rank,sep = "-"),".png"),
-#        plot=mainplot,
-#        width = 13500,height = 5200,
-#        units = "px",dpi=300,device = "png")
-# ggsave(paste0(barplot.directory,
-#               paste(Sys.Date(),"barplot",paste(custom.levels,collapse = '-'),
-#                     truncationlvl,
-#                     agglom.rank,sep = "-"),".tiff"),
-#        plot=mainplot,
-#        width = 13500,height = 5200,
-#        units = "px",dpi=300,device = "tiff")
+for(image.format in image.formats){
+  ggsave(paste0(barplot.directory,
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "barplot",paste(custom.levels,collapse = '-'),
+                      agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=mainplot,
+         width = 13500,height = 5200,
+         units = "px",dpi=300,device = image.format)
+}
+
 
 # Plot separate barplots for each host
 for(i in seq_along(custom.levels)){
@@ -409,7 +402,9 @@ for(i in seq_along(custom.levels)){
           legend.title = element_text(size = 25), # size of legend title
           legend.position = "right") # legend on the right
   ggsave(paste0(barplot.directory,
-                paste(Sys.Date(),custom.levels[i],"barplot",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      custom.levels[i],"barplot",
                       agglom.rank,sep = "-"),".png"),
          plot=lvl.plot,
          width = 8000,height = 6000,
@@ -491,18 +486,18 @@ for(i in seq_along(custom.levels)){
 #         legend.title = element_text(size = 25),
 #         legend.position = "right")
 # 
-# ggsave(paste0("./images/barplots/",
-#               paste(Sys.Date(),"barplot","NMR-B6mouse",truncationlvl,
-#                     agglom.rank,sep = "-"),".png"),
-#        plot=lvl.plot,
-#        width = 8000,height = 6000,
-#        units = "px",dpi=300,device = "png")
-# ggsave(paste0("./images/barplots/",
-#               paste(Sys.Date(),"barplot","NMR-B6mouse",truncationlvl,
-#                     agglom.rank,sep = "-"),".tiff"),
-#        plot=lvl.plot,
-#        width = 8000,height = 6000,
-#        units = "px",dpi=300,device = "tiff")
+for(image.format in image.formats){
+  ggsave(paste0(barplot.directory,
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "barplot","NMR-B6mouse",
+                      agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=lvl.plot,
+         width = 8000,height = 6000,
+         units = "px",dpi=300,device = image.format)
+}
+
 # 
 
 # 
