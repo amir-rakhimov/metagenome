@@ -1,12 +1,12 @@
 library(tidyverse)
 library(phyloseq)
 library(vegan)
-
+date_time<-"20240518_13_40_08"
 agglom.rank<-"Species"
-
-load(paste0("./output/rdafiles/",paste("kraken2",
-                                       agglom.rank,
-                                       "phyloseq-workspace.RData",sep = "-")))
+# Load the Workspace from phyloseq (output of 001-phyloseq-qiime2.R)
+load(file.path("./output/rdafiles",paste(
+  date_time,"kraken2",agglom.rank,
+  "phyloseq-workspace.RData",sep = "-")))
 
 # custom.levels<-c("NMR","B6mouse")
 # better labels for facets
@@ -62,8 +62,13 @@ ps.q.df.rare<-ps.q.df.rare%>%
   rename(!!agglom.rank:=name,Abundance=value)%>%
   filter(Abundance!=0)
 write.table(ps.q.df.rare,
-            file = paste0("./output/rtables/","kraken2-","ps.q.df.rare.nonfiltered-",
-                          agglom.rank,"-",paste(custom.levels,collapse = '-'),".tsv"),
+            file = file.path("./output/rtables",paste0(
+              paste(
+                paste(format(Sys.time(),format="%Y%m%d"),
+                      format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                "kraken2-ps.q.df.rare-nonfiltered",agglom.rank,
+                paste(custom.levels,collapse = '-'),sep = "-"),
+              ".tsv")),
             row.names = F,
             sep = "\t")
 

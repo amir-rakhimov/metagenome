@@ -3,7 +3,9 @@ library(vegan)
 library(tidyverse)
 library(phyloseq)
 library(Polychrome)
-
+library(ggrepel)
+phyloseq.date_time<-"20240518_13_40_08"
+ps.q.df.preprocessed.date_time<-"20240518_13_43_11"
 agglom.rank<-"Species"
 
 # Import data ####
@@ -11,6 +13,7 @@ rare.status<-"rare"
 # rare.status<-"nonrare"
 # filter.status<-"filtered"
 filter.status<-"nonfiltered"
+image.formats<-c("png","tiff")
 
 host<-"NMR"
 # host<-"mice"
@@ -20,9 +23,10 @@ comparison<-"age"
 # comparison<-"sex"
 # comparison<-"strain"
 
-load(paste0("./output/rdafiles/",paste("kraken2",
-                                       agglom.rank,
-                                       "phyloseq-workspace.RData",sep = "-")))
+
+load(file.path("./output/rdafiles",paste(
+  phyloseq.date_time,"kraken2",agglom.rank,
+  "phyloseq-workspace.RData",sep = "-")))
 # gg.title.taxon<-ifelse(agglom.rank=="Species","(Species level)",
 #                        paste0("(",agglom.rank," level)"))
 gg.title.taxon<-paste0("(",agglom.rank," level)")
@@ -33,7 +37,7 @@ gg.title.taxon<-paste0("(",agglom.rank," level)")
 # make a balanced split: four samples younger than 10 vs seven samples older than 10
 # create a vector of break points
 age.breaks<-c(min(custom.md$age),10,max(custom.md$age))
-age.breaks<-c(2,7,11,16)
+# age.breaks<-c(2,7,11,16)
 custom.md<-custom.md%>%
   mutate(age_group=cut(age, breaks = age.breaks, 
                        include.lowest = TRUE))%>%
@@ -54,10 +58,12 @@ if(host=="NMR"){
 
 
 # load the output of 003-phyloseq-rarefaction-filtering.R file
-ps.q.df.preprocessed<-read.table(paste0("./output/rtables/kraken2-ps.q.df.",
-                                        rare.status,".",filter.status,"-",agglom.rank,"-",
-                                        paste(names(host.labels),collapse = '-'),".tsv"),
-                                 header = T,sep = "\t")
+ps.q.df.preprocessed<-read.table(
+  file.path("./output/rtables",paste0(
+    paste(ps.q.df.preprocessed.date_time,
+          paste0("kraken2-ps.q.df.",rare.status),filter.status,agglom.rank,
+          paste(names(host.labels),collapse = '-'),sep = "-"),".tsv")),
+  header = T,sep = "\t")
 ps.q.df.preprocessed$Sample<-as.factor(ps.q.df.preprocessed$Sample)
 ps.q.df.preprocessed$class<-as.factor(ps.q.df.preprocessed$class)
 ps.q.df.preprocessed$sex<-as.factor(ps.q.df.preprocessed$sex)
@@ -288,9 +294,65 @@ if(comparison=="age"){
                    aes(x=factor(all.div$class,
                                 level=custom.levels),y=value,fill=factor(class)))
 }
-library(ggrepel)
+
+div.plot<-div.plot+
+  geom_boxplot(show.legend = FALSE,alpha=0.8)+
+  facet_wrap(~factor(metric, # reorder facets
+                     levels=plot.metrics),
+             ncol=length(plot.metrics),
+             scales="free_y", # free y axis range
+             labeller = as_labeller(metric.labs))+ # rename facets
+  theme_bw()+ 
+  labs(color=gg.labs.name)+
+  scale_color_manual(breaks = scale.color.breaks,
+                     labels=scale.color.labels)+
+  scale_x_discrete(labels=pretty.axis.labels,
+                   limits=custom.levels)+ # rename boxplot labels (x axis)
+  scale_fill_manual(values = custom.fill)+
+  theme(plot.margin=unit(c(1,1,1,2), 'cm'),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = ggtext::element_markdown(angle=45,hjust=1,size=18),
+        axis.text.y = element_text(size=20),
+        axis.title = element_text(size = 20),
+        strip.text.x = element_text(size=20),
+        plot.title = element_text(size = 27),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 25),
+        legend.position = "none")+
+  ggtitle(paste("Alpha diversity of the gut microbiota of different",as.character(host.class[host]),gg.title.groups,
+                gg.title.taxon))
+
+div.plot.with.dots<-div.plot+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.8)
+
+for(image.format in image.formats){
+  ggsave(paste0("./images/diversity/alpha/",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "alpha",paste(plot.metrics,collapse = "-"),host,
+                      comparison,agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=div.plot,
+         width = 5000,height = 3000,
+         units = "px",dpi=300,device = image.format)
+  ggsave(paste0("./images/diversity/alpha/",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "alpha-dots",paste(plot.metrics,collapse = "-"),host,
+                      comparison,agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=div.plot.with.dots,
+         width = 5000,height = 3000,
+         units = "px",dpi=300,device = image.format)
+}
+
+
+
+## Make a labeled plot ####
 custom.md$Sample<-rownames(custom.md)
-labeled.plot<-all.div%>%left_join(custom.md[,c("Sample","age")],"Sample")%>%
+labeled.plot<-all.div%>%
+  left_join(custom.md[,c("Sample","age")],"Sample")%>%
   mutate("Sample_age"=paste(Sample,age,sep = " ("))%>%
   mutate("Append"=" yrs old)")%>%
   unite("Sample_age",Sample_age:Append,sep = "")%>%
@@ -325,70 +387,19 @@ labeled.plot<-all.div%>%left_join(custom.md[,c("Sample","age")],"Sample")%>%
         legend.position = "none")+
   ggtitle(paste("Alpha diversity of the gut microbiota of different",as.character(host.class[host]),gg.title.groups,
                 gg.title.taxon))
-ggsave(paste0("./images/diversity/alpha/",
-              paste(Sys.Date(),"alpha-labeled",
-                    paste(plot.metrics,collapse = "-"),host,
-                    comparison,agglom.rank,
-                    sep="-"),".png"),
-       plot=labeled.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "png")
-ggsave(paste0("./images/diversity/alpha/",
-              paste(Sys.Date(),"alpha-labeled",
-                    paste(plot.metrics,collapse = "-"),host,
-                    comparison,agglom.rank,
-                    sep="-"),".tiff"),
-       plot=labeled.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "tiff")
 
+for(image.format in image.formats){
+  ggsave(paste0("./images/diversity/alpha/",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "alpha-labeled",paste(plot.metrics,collapse = "-"),host,
+                      comparison,agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=labeled.plot,
+         width = 5000,height = 3000,
+         units = "px",dpi=300,device = image.format)
+}
 
-div.plot<-div.plot+
-  geom_boxplot(show.legend = FALSE,alpha=0.5)+
-  facet_wrap(~factor(metric, # reorder facets
-                     levels=plot.metrics),
-             ncol=length(plot.metrics),
-             scales="free_y", # free y axis range
-             labeller = as_labeller(metric.labs))+ # rename facets
-  theme_bw()+ 
-  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.8)+
-  labs(color=gg.labs.name)+
-  scale_color_manual(breaks = scale.color.breaks,
-                     labels=scale.color.labels)+
-  scale_x_discrete(labels=pretty.axis.labels,
-                   limits=custom.levels)+ # rename boxplot labels (x axis)
-  scale_fill_manual(values = custom.fill)+
-  theme(plot.margin=unit(c(1,1,1,2), 'cm'),
-        axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        axis.text.x = ggtext::element_markdown(angle=45,hjust=1,size=18),
-        axis.text.y = element_text(size=20),
-        axis.title = element_text(size = 20),
-        strip.text.x = element_text(size=20),
-        plot.title = element_text(size = 27),
-        legend.text = element_text(size = 20),
-        legend.title = element_text(size = 25),
-        legend.position = "none")+
-  ggtitle(paste("Alpha diversity of the gut microbiota of different",as.character(host.class[host]),gg.title.groups,
-                gg.title.taxon))
-
-ggsave(paste0("./images/diversity/alpha/",
-              paste(Sys.Date(),"alpha",
-                    paste(plot.metrics,collapse = "-"),host,
-                    comparison,agglom.rank,
-                    sep="-"),".png"),
-       plot=div.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "png")
-
-ggsave(paste0("./images/diversity/alpha/",
-              paste(Sys.Date(),"alpha",
-                    paste(plot.metrics,collapse = "-"),host,
-                    comparison,agglom.rank,
-                    sep="-"),".tiff"),
-       plot=div.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "tiff")
 
 # Per-sample plot ####
 # We need to invert the custom.levels for the rotated plot
@@ -432,19 +443,20 @@ per.sample.div.plot<-ggplot(all.div[all.div$metric %in%
         legend.position = "right")+
   ggtitle(paste("Alpha diversity of the gut microbiota of different",as.character(host.class[host]),gg.title.groups,
                 gg.title.taxon))
-ggsave(paste0("./images/diversity/alpha/",paste(Sys.Date(),"alpha-per-sample",
-                                                paste(plot.metrics,collapse = "-"),host,comparison,agglom.rank,truncationlvl,
-                                                sep="-"),".png"),
-       plot=per.sample.div.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "png")
 
-ggsave(paste0("./images/diversity/alpha/",paste(Sys.Date(),"alpha-per-sample",
-                                                paste(plot.metrics,collapse = "-"),host,comparison,agglom.rank,truncationlvl,
-                                                sep="-"),".tiff"),
-       plot=per.sample.div.plot,
-       width = 6000,height = 3000,
-       units = "px",dpi=300,device = "tiff")
+for(image.format in image.formats){
+  ggsave(paste0("./images/diversity/alpha/",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "alpha-per-sample",
+                      paste(plot.metrics,collapse = "-"),host,
+                      comparison,agglom.rank,
+                      sep = "-"),".",image.format),
+         plot=per.sample.div.plot,
+         width = 6000,height = 3000,
+         units = "px",dpi=300,device = image.format)
+}
+
 
 # Add significance stars ####
 coord.combs<-combn(seq_along(custom.levels),2)
@@ -543,19 +555,15 @@ newplot<-div.plot+
   geom_text(data = stars,aes(x=x, y=y, label=label),
             inherit.aes = FALSE,size=10) # add stars 
 
-
-
-ggsave(paste0("./images/diversity/alpha/",paste(Sys.Date(),
-                                                "alpha-shannon-sobs",host,comparison,agglom.rank,"signif"
-                                                ,truncationlvl,sep = "-"),
-              ".png"),
-       plot=newplot,
-       width = 6000,height = 5000,
-       units = "px",dpi=300,device = "png")
-ggsave(paste0("./images/diversity/",paste(Sys.Date(),
-                                          "alpha-shannon-sobs",host,comparison,agglom.rank,"signif"
-                                          ,truncationlvl,sep = "-"),
-              ".tiff"),
-       plot=newplot,
-       width = 6000,height = 5000,
-       units = "px",dpi=300,device = "png")
+for(image.format in image.formats){
+  ggsave(paste0("./images/diversity/alpha/",
+                paste(paste(format(Sys.time(),format="%Y%m%d"),
+                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                      "alpha-per-sample",
+                      paste(plot.metrics,collapse = "-"),host,
+                      comparison,agglom.rank,"signif",
+                      sep = "-"),".",image.format),
+         plot=newplot,
+         width = 6000,height = 3000,
+         units = "px",dpi=300,device = image.format)
+}
