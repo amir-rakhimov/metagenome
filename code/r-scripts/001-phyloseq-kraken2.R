@@ -151,6 +151,24 @@ if(agglom.rank=="Species"|agglom.rank=="OTU"){
 ps.q.agg<-ps.q.agg%>%
   select(-TotalClass,-TotalSample)
 
+ps.q.agg<-ps.q.agg%>%
+  filter(Species!="Homo_sapiens")
+
+# Save the ASV table
+write.table(ps.q.agg,
+        file=file.path("./output/rtables",paste(
+          paste(format(Sys.time(),format="%Y%m%d"),
+                format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+          "phyloseq-kraken2",agglom.rank,
+          "table.tsv",sep="-")),
+        row.names = F,sep = "\t")
+saveRDS(ps.q.agg,
+            file=file.path("./output/rdafiles",paste(
+              paste(format(Sys.time(),format="%Y%m%d"),
+                    format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+              "phyloseq-kraken2",agglom.rank,
+              "table.rds",sep="-")))
+
 objects.to.keep<-c("agglom.rank","ps.q.agg","custom.md")
 objects.to.keep<-which(ls()%in%objects.to.keep)
 rm(list = ls()[-objects.to.keep])
