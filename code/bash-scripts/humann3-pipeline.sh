@@ -176,8 +176,8 @@ done
 # SRS014472-Buccal_mucosa_pathabundance.tsv # main output is in general output directory
 # SRS014459-Stool_pathcoverage.tsv # main output is in general output directory
 # SRS014472-Buccal_mucosa_pathcoverage.tsv # main output is in general output directory
-#mkdir ${humann_out_dir}/humann_merged_${date_time}
-#humann_merged_out_dir=${humann_out_dir}/humann_merged_${date_time}
+#mkdir ${humann_out_dir}/humann_out_${date_time}_merged
+#humann_merged_out_dir=${humann_out_dir}/humann_out_${date_time}_merged
 ### Let's join gene family abundance outputs into a single table
 #humann_join_tables -i ${humann_out_dir}/humann_out_${date_time} \
 #  -o ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies.tsv \
@@ -185,7 +185,7 @@ done
 ### Notice how we don't specify each sample but the name of directory 
 ### in front of _genefamilies.tsv
 ### file_name is also just genefamilies: only join tables with this string included in the file name
-### Result: ${humann_out_dir}/humann_merged_${date_time}/${date_time}_humann_out_genefamilies.tsv
+### Result: ${humann_out_dir}/humann_out_${date_time}_merged/${date_time}_humann_out_genefamilies.tsv
 #humann_join_tables -i ${humann_out_dir}/humann_out_${date_time} \
 #  -o ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance.tsv \
 #  --file_name pathabundance
@@ -209,3 +209,42 @@ done
 #humann_rename_table --input ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn.tsv \
 #    --output ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv \
 #	--names metacyc-rxn
+
+
+# Remove unmapped and ungrouped data from gene families
+grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv
+# Extract stratifications
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-strat.tsv
+# Remove stratifications
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total.tsv
+
+# Remove unmapped and ungrouped data from pathabundance
+grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv
+# Extract stratifications
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-strat.tsv
+# Remove stratifications
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total.tsv
+
+# Do it in reverse: extract stratifications and totals, then filter (gene families)
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-strat.tsv
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv
+grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total-filtered.tsv
+
+# Do it in reverse: extract stratifications and totals, then filter (pathabundance)
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-strat.tsv
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv  > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total.tsv
+grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total.tsv > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered.tsv
+
+# Renormalizing after filtering
+humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total.tsv \
+   --output ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total-renorm.tsv \
+	--units cpm 
+humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total.tsv \
+   --output ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total-renorm.tsv \
+	--units cpm 
+
+
+humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered.tsv \
+   --output ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered-renorm.tsv \
+	--units cpm 
+
