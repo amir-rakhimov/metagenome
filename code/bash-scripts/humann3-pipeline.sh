@@ -12,7 +12,8 @@ bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
 # mkdir output/humann3_pipeline
 humann_out_dir=output/humann3_pipeline
 # mkdir data/humann3_db
-humann3_db_dir=data/humann3_db/humann3_full_20240513
+# humann3_db_dir=data/humann3_db/humann3_full_${date_var}
+humann3_db_dir=data/humann3_db/humann3_full_20240625
 source ~/miniconda3/etc/profile.d/conda.sh
 # # Set conda channel priority
 # conda config --add channels defaults
@@ -34,9 +35,9 @@ conda activate humann-tools-3.7
 #  "--nucleotide-database " option to humann.
 # humann_config --update database_folders protein $DIR 
 # humann_config --update database_folders protein \
-	# /lustre7/home/rakhimov/projects/metagenome/data/humann3_db/humann3_full_20240513/uniref
+	# /lustre7/home/rakhimov/projects/metagenome/data/humann3_db/humann3_full_20240625/uniref
 # humann_config --update database_folders nucleotide \
-	# /lustre7/home/rakhimov/projects/metagenome/data/humann3_db/humann3_full_20240513/chocophlan
+	# /lustre7/home/rakhimov/projects/metagenome/data/humann3_db/humann3_full_20240625/chocophlan
 
 ## Download a translated search database
 ## To download the full UniRef90 database (20.7GB, recommended)
@@ -113,10 +114,10 @@ conda activate humann-tools-3.7
 
 # humann -i data/bowtie2_decontam_fastq/2D10_subset_merged.fastq.gz \
 # 	-o output/humann3_pipeline/humann_out_${date_time}\
-# 	--protein-database data/humann3_db/humann3_full_20240513/uniref \
+# 	--protein-database data/humann3_db/humann3_full_20240625/uniref \
 # 	--bypass-prescreen
 
-# 	--nucleotide-database data/humann3_db/humann3_full_20240513/chocophlan \
+# 	--nucleotide-database data/humann3_db/humann3_full_20240625/chocophlan \
 # We can skip creation of custom Chocophlan database if you already have it using
 #  --nucleotide-database $OUTPUT_DIR/$SAMPLE_1_humann_temp/ --bypass-nucleotide-index
 # (I run out of memory during bowtie2 build-index and I don't want to create the database 
@@ -212,30 +213,41 @@ done
 
 
 # Remove unmapped and ungrouped data from gene families
-grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv
+grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv
 # Extract stratifications
-grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-strat.tsv
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-strat.tsv
 # Remove stratifications
-grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total.tsv
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total.tsv
 
 # Remove unmapped and ungrouped data from pathabundance
-grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv
+grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv
 # Extract stratifications
-grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-strat.tsv
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-strat.tsv
 # Remove stratifications
-grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total.tsv
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total.tsv
 
 # Do it in reverse: extract stratifications and totals, then filter (gene families)
-grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-strat.tsv
-grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv
-grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv >${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total-filtered.tsv
+grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-strat.tsv
+grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv
+grep -v -e UNMAPPED -e UNGROUPED ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total.tsv >\
+	${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-total-filtered.tsv
+
 
 # Do it in reverse: extract stratifications and totals, then filter (pathabundance)
 grep "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-strat.tsv
 grep -v "|" ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm.tsv  > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total.tsv
-grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total.tsv > ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered.tsv
+grep -v -e UNMAPPED -e UNINTEGRATED ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total.tsv > \
+	${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered.tsv
 
-# Renormalizing after filtering
+# Renormalizing gene family totals after filtering
 humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total.tsv \
    --output ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-total-renorm.tsv \
 	--units cpm 
@@ -243,8 +255,39 @@ humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_pat
    --output ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-filtered-total-renorm.tsv \
 	--units cpm 
 
+# Renormalise gene family stratifications: renorm REQUIRES totals if you have stratifications
+humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered.tsv \
+   --output ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-renorm.tsv \
+	--units cpm 
 
+
+# Renormalise path abundance totals 
 humann_renorm_table --input ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered.tsv \
    --output ${humann_merged_out_dir}/${date_time}_humann_out_pathabundance-cpm-total-filtered-renorm.tsv \
 	--units cpm 
 
+### humann barplot ()
+maaslin2_file=output/rtables/20240622_20_05_38-maaslin2-singif-gene_family-NMR-age-agegroup0_10-agegroup10_16-ref-agegroup0_10-.tsv
+IFS=$'\r\n' GLOBIGNORE='*' command eval  'maaslin2_array=($(cat ${maaslin2_file}))'
+# mkdir images/humann3_images/gene_family/${date_time}
+for maaslin2_feaure in "${maaslin2_array[@]}"
+do
+    echo "${maaslin2_feaure}"
+    humann_barplot --input ${humann_merged_out_dir}/${date_time}_humann_out_genefamilies-cpm-rxn-named-filtered-renorm_copy.tsv \
+	    --focal-metadata agegroup --last-metadata agegroup \
+      --output images/humann3_images/gene_family/${date_time}/gene_family_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
+	    --sort sum metadata;
+done
+
+
+
+# maaslin2_file=output/rtables/maaslin2-humann3-signif-pathabundance-NMR.tsv
+# IFS=$'\r\n' GLOBIGNORE='*' command eval  'maaslin2_array=($(cat ${maaslin2_file}))'
+# for maaslin2_feaure in "${maaslin2_array[@]}"
+# do
+#     echo "${maaslin2_feaure}"
+#     humann_barplot --input ${humann_merged_out_dir}/${date_var}_humann_out_pathabundance-cpm-total-filtered-renorm.tsv \
+# 	    --focal-metadata age_group --last-metadata age_group \
+#         --output images/humann3_images/pathway/${date_time}/pathway_${maaslin2_feaure}.png --focal-feature ${maaslin2_feaure} \
+# 	    --sort sum metadata;
+# done
