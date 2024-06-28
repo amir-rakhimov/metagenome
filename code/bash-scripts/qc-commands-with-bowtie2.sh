@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 nthreads=12
+mem_req=8G
+mem_req_sort=4G
+nthreads_sort=8
 project_home_dir=~/projects/metagenome
 fastq_dir=data/fastq/yasuda-fastq
 reference_genomes_dir=~/common_data/reference_genomes
@@ -15,6 +18,7 @@ REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 
 # mkdir ~/common_data
 # mkdir ~/common_data/reference_genomes
+#mkdir output
 # mkdir output/qc_pipeline
 #mkdir output/qc_pipeline/fastqc_output
 #mkdir output/qc_pipeline/multiqc_output
@@ -23,6 +27,18 @@ REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 #mkdir output/qc_pipeline/trf_output
 #mkdir output/qc_pipeline/fastq_norepeats
 #mkdir output/qc_pipeline/fastqc_output_decontam
+#mkdir output/bowtie2_pipeline
+#mkdir output/bowtie2_pipeline/bowtie2_output_sam
+#mkdir output/bowtie2_pipeline/bowtie2_output_bam
+#mkdir output/bowtie2_pipeline/bowtie2_filtered_bam
+#mkdir output/bowtie2_pipeline/bowtie2_sorted_bam
+#mkdir data/bowtie2_decontam_fastq
+bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
+bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
+bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
+bowtie2_sorted_bam_dir=output/bowtie2_pipeline/bowtie2_sorted_bam
+bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
+fastqc_output_decontam_dir=output/qc_pipeline/fastqc_output_decontam
 source ~/miniconda3/etc/profile.d/conda.sh
 # Set conda channel priority
 # conda config --add channels defaults
@@ -67,6 +83,9 @@ conda activate qc-tools
 ### Heter_glaber.v1.7_hic_pac
 # curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
 #   --output ${reference_genomes_dir}/Heter_glaber.v1.7_hic_pac.zip
+### There is also a new assembly that is used by Ensembl: Naked_mole-rat_maternal
+# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
+#   --output ${reference_genomes_dir}/Naked_mole-rat_maternal.zip
 ### DMR_v1.0_HiC Damaraland mole-rat
 # curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
 #   --output ${reference_genomes_dir}/DMR_v1.0_HiC.zip
@@ -227,45 +246,21 @@ done
 # name of cleaned fastq/fastq.gz: ${fastq_norepeats_dir}/2D10_wms_L1_1.clean.fastq.gz
 
 # 4 Bowtie2
-nthreads=12
-mem_req=8G
-mem_req_sort=4G
-nthreads_sort=8
-# 1. Remove host DNA with bowtie2
-## 1.1 Bowtie2 mapping against host sequence
+# The Bowtie2 pipeline consists of these steps:
+### 4.1 Align the reads to the reference genome (remove host DNA with bowtie2)
+### 4.2 Convert file .sam to .bam
+### 4.3 Filter unmapped reads (unmapped to host genome)
+### 4.4 Split paired-end reads into separated fastq files .._R1 .._R2
+### sort bam file by read name ( -n ) to have paired reads next to each other 
+### 5.1 Run FastQC and MultiQC on decontaminated data as a final check
+### 5.2 Run MultiQC on decontaminated data
+
 ### RUN WITHOUT TRIMMOMATIC OR TRF
-### FILE is the entire path (data/fastq/yasuda-fastq/2D10_wms_L3_1.fq.gz)
+### FILE is the entire path (data/fastq/yasuda-fastq/2D10_wms_L3_4.fq.gz)
 ### SAMPLE is path and file without extension (data/fastq/yasuda-fastq/2D10_wms)
 ### base_name is just the file without extension or path (2D10_wms)
-#mkdir output
-#mkdir output/bowtie2_pipeline
-#mkdir output/bowtie2_pipeline/bowtie2_output_sam
-#mkdir output/bowtie2_pipeline/bowtie2_output_bam
-#mkdir output/bowtie2_pipeline/bowtie2_filtered_bam
-#mkdir output/bowtie2_pipeline/bowtie2_sorted_bam
-#mkdir data/bowtie2_decontam_fastq
-fastq_dir=data/fastq/yasuda-fastq
-cutadapt_output_dir=output/qc_pipeline/cutadapt_output
-fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
-bowtie2_indices_dir=~/common_data/bowtie2_indices
-bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
-bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
-bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
-bowtie2_sorted_bam_dir=output/bowtie2_pipeline/bowtie2_sorted_bam
-bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
-fastqc_output_decontam_dir=output/qc_pipeline/fastqc_output_decontam
-multiqc_output_dir=output/qc_pipeline/multiqc_output
 
-# The Bowtie2 pipeline consists of these steps:
-### 1. Align the reads to the reference genome
-### 1.2 Convert file .sam to .bam
-### 1.3 Filter unmapped reads (unmapped to host genome)
-### 1.4 Split paired-end reads into separated fastq files .._R1 .._R2
-### sort bam file by read name ( -n ) to have paired reads next to each other 
-### 2. Run FastQC and MultiQC on decontaminated data as a final check
-### 2.1 Run MultiQC on decontaminated data
-
-# 1. Align the reads to the reference genome
+# 4.1 Align the reads to the reference genome (remove host DNA with bowtie2)
 ### On raw data (don't do it!)
 # for FILE in ${fastq_dir}/*L3_1.fq.gz
 # do 
@@ -276,6 +271,7 @@ multiqc_output_dir=output/qc_pipeline/multiqc_output
 #   -2 ${fastq_dir}/${base_name}_L3_2.fq.gz \
 #   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
 # done
+
 ### On trimmed data (from cutadapt)
 for FILE in ${cutadapt_output_dir}/*R1.trimmed.fastq.gz
 do 
@@ -323,7 +319,7 @@ done
 
 ## 1.4 Split paired-end reads into separated fastq files .._R1 .._R2
 ### sort bam file by read name ( -n ) to have paired reads next to each other 
-### (${nthreads} parallel threads, each using up to 5G memory)
+### (${nthreads_sort} parallel threads, each using up to 5G memory)
 for FILE in ${bowtie2_filtered_bam_dir}/*bothReadsUnmapped.bam 
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_bothReadsUnmapped\.bam//")
@@ -337,11 +333,9 @@ do
   	-0 /dev/null -s /dev/null -n;
 done
 
-# 2. Run FastQC and MultiQC on decontaminated data as a final check
+# 5.1 Run FastQC and MultiQC on decontaminated data as a final check
 # fastqc ${bowtie2_decontam_fastq_dir}/2D10_wms_decontam_R1.fastq.gz --outdir fastqc_output
 fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_output_decontam_dir}
-## 2.1 Run MultiQC on decontaminated data
+## 5.2 Run MultiQC on decontaminated data
 multiqc ${fastqc_output_decontam_dir} --outdir ${multiqc_output_dir}
 
-# 5. Run FastQC and MultiQC on decontaminated data as a final check
-### done in bowtie2-pipeline.sh
