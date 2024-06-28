@@ -46,7 +46,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # conda config --add channels conda-forge
 # conda config --add channels biobakery
 # # Create conda environment
-# conda create -y --name qc-tools -c bioconda bowtie2 cutadapt samtools trf fastqc multiqc seqtk
+# conda create -yqn qc-tools -c bioconda bowtie2 cutadapt samtools trf fastqc multiqc seqtk bbmap
 conda activate qc-tools 
 # Rename files
 # for FILE in nmrF*.fq.gz; do mv "$FILE" $(echo "$FILE" | sed 's/nmrF_//'); done
