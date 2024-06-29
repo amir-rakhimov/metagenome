@@ -28,7 +28,7 @@ agglom.rank<-"Species"
 # load(file.path("./output/rdafiles",paste(
 #   phyloseq.date_time,"kraken2",agglom.rank,
 #   "phyloseq-workspace.RData",sep = "-")))
-custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.rds")
+custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.ages.rds")
 
 rare.status<-"rare"
 filter.status<-"nonfiltered"
@@ -73,10 +73,11 @@ if(host=="NMR"){
     group_by(Sample)%>%
     mutate(birthday=as.Date(birthday))%>%
     mutate(age=year(as.period(interval(birthday,as.Date("2023-11-16")))))%>%
-    left_join(unique(ps.q.df.preprocessed[,c("Sample","agegroup")]),by="Sample")%>%
+    left_join(unique(ps.q.df.preprocessed[,c("Sample","agegroup","old_agegroup")]),by="Sample")%>%
     mutate(agegroup=as.factor(agegroup))%>%
     as.data.frame()
   rownames(custom.md)<-custom.md$Sample
+  saveRDS(custom.md,file="./output/rdafiles/custom.md.ages.rds")
 }else if(host=="mice"){
   # select mice and add age groups: B6, old, or young
   # B6 are separate
@@ -157,9 +158,9 @@ maaslin.fit_data =
   Maaslin2(input_data = ps.q.df.wide, 
            input_metadata = custom.md, 
            min_prevalence = 0,
+           analysis_method = "LM",
            normalization = "TSS",
            transform = "LOG",
-           analysis_method = "LM",
            random_effects = c("relation"), 
            standardize = FALSE,
            output = file.path("./output/maaslin2","kraken2-output",
@@ -320,6 +321,18 @@ ps.q.agg.relab<- ps.q.agg.relab %>%
 #            units = "px",dpi=300,device = image.format)
 #   }
 # }
+
+# Check the average relative abundance of significant taxa ####
+# Separate by agegroup
+ps.q.agg%>%
+  left_join(custom.md)%>%
+  group_by(agegroup)%>% # group by class (animal host),
+  mutate(TotalAgegroup=sum(Abundance))%>%
+  group_by_at(c("agegroup",agglom.rank))%>%
+  mutate(TotalAgglomRankAge=sum(Abundance))%>%
+  mutate(MeanRelativeAbundanceAgegroup=TotalAgglomRankAge/TotalAgegroup*100)%>%
+  filter(Species%in%maaslin.signif.features$feature)%>%
+  select(MeanRelativeAbundance,MeanRelativeAbundanceAgegroup)
 
 
 # Plot differentially abundant species ####
