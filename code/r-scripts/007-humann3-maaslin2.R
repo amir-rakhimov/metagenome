@@ -67,10 +67,10 @@ pathabundance<-pathabundance%>%
 # have chorismate biosynthesis I|g__Phascolarctobacterium.s__Phascolarctobacterium_faecium
 # But those that don't have a ":" will be duplicated (both columns will have the 
 # same contents)
-pathabundance<-within(pathabundance, 
-            Pathway<-data.frame(do.call('rbind', 
-                                             strsplit(as.character(Pathway), 
-                                                      ':', fixed=TRUE))))
+# pathabundance<-within(pathabundance, 
+#             Pathway<-data.frame(do.call('rbind', 
+#                                              strsplit(as.character(Pathway), 
+#                                                       ':', fixed=TRUE))))
 # copy pathabundance to another dataframe
 # pathabundance_full<-pathabundance
 # pathway_strat has the pathway name with stratification
@@ -84,10 +84,10 @@ pathabundance<-within(pathabundance,
 # So, from chorismate biosynthesis I|g__Phascolarctobacterium.s__Phascolarctobacterium_faecium
 # pathabundance_full$pathway_strat$X1 will have chorismate biosynthesis I
 # and pathabundance_full$pathway_strat$X2 will have g__Phascolarctobacterium.s__Phascolarctobacterium_faecium
-pathabundance_full<-within(pathabundance_full, 
-                      pathway_strat<-data.frame(do.call('rbind', 
-                                                  strsplit(as.character(pathway_strat), 
-                                                           '|', fixed=TRUE))))
+# pathabundance_full<-within(pathabundance_full, 
+#                       pathway_strat<-data.frame(do.call('rbind', 
+#                                                   strsplit(as.character(pathway_strat), 
+#                                                            '|', fixed=TRUE))))
 # pathway column has the name of the pathway
 # pathabundance_full$pathway<-pathabundance_full$pathway_strat$X1
 # # strat column has the stratification
@@ -286,7 +286,7 @@ rowSums(gene_family.wide)
 
 
 # Create metadata ####
-custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.rds")
+custom.md<-readRDS("./output/rdafiles/custom.md.ages.rds")
 # metadata.filename<-paste0(metadatadir,
 #                           paste("filenames-single-pooled-raw-supercomp.tsv", sep = "-"))
 # custom.md<-read.table(metadata.filename, header = T)
@@ -309,30 +309,30 @@ custom.md<-custom.md%>%
 # custom.md$animal<-as.factor(custom.md$animal)
 # custom.md$sex<-as.factor(custom.md$sex)
 # custom.md$birthday<-as.Date(custom.md$birthday)
-custom.md$age<-year(as.period(interval(custom.md$birthday,as.Date("2023-11-16"))))
+# custom.md$age<-year(as.period(interval(custom.md$birthday,as.Date("2023-11-16"))))
 
 
 # age.breaks<-c(min(custom.md$age),10,max(custom.md$age))
-age.breaks<-c(0,10,16)
-custom.md<-custom.md%>%
-  mutate(agegroup=cut(age, breaks = age.breaks, 
-                       right=FALSE))%>%
-  mutate(agegroup=as.factor(agegroup))
+# age.breaks<-c(0,10,16)
+# custom.md<-custom.md%>%
+#   mutate(agegroup=cut(age, breaks = age.breaks, 
+#                        right=FALSE))%>%
+#   mutate(agegroup=as.factor(agegroup))
 # substr(gsub("\\[|\\]","",as.character(custom.md$agegroup)[1]),2,2)
 
-unique_levels <- custom.md %>%
-  ungroup()%>%
-  distinct(agegroup)%>%
-  arrange(agegroup) %>%
-  mutate(new_agegroup = paste0("agegroup", agegroup))%>%
-  mutate(new_agegroup = gsub("\\(|\\)|\\[|\\]","",new_agegroup))%>%
-  mutate(new_agegroup = gsub("\\,","_",new_agegroup))
+# unique_levels <- custom.md %>%
+#   ungroup()%>%
+#   distinct(agegroup)%>%
+#   arrange(agegroup) %>%
+#   mutate(new_agegroup = paste0("agegroup", agegroup))%>%
+#   mutate(new_agegroup = gsub("\\(|\\)|\\[|\\]","",new_agegroup))%>%
+#   mutate(new_agegroup = gsub("\\,","_",new_agegroup))
 
-custom.md <- custom.md %>%
-  left_join(unique_levels, by = "agegroup")
-colnames(custom.md)[which(colnames(custom.md)=="agegroup")]<-"old_agegroup"
-colnames(custom.md)[which(colnames(custom.md)=="new_agegroup")]<-"agegroup"
-rownames(custom.md)<-custom.md$Sample
+# custom.md <- custom.md %>%
+#   left_join(unique_levels, by = "agegroup")
+# colnames(custom.md)[which(colnames(custom.md)=="agegroup")]<-"old_agegroup"
+# colnames(custom.md)[which(colnames(custom.md)=="new_agegroup")]<-"agegroup"
+# rownames(custom.md)<-custom.md$Sample
 custom.levels<-names(table(custom.md$agegroup))
 
 maaslin.reference<-paste("agegroup",ref.level,sep = ",")
@@ -409,7 +409,8 @@ save.image(file.path("./output/rdafiles",paste(
   ref.level,"workspace.RData",sep="-")))
 
 # Downstream analysis on gene families ####
-maaslin.workspace.gene_family.datetime<-"20240621_18_59_28"
+library(tidyverse)
+maaslin.workspace.gene_family.datetime<-"20240621_18_53_46"
 comparison<-"age"
 host<-"NMR"
 ref.level<-"agegroup0_10" # choose the reference level
@@ -448,6 +449,30 @@ maaslin.signif.features<-maaslin.signif.features%>%
   left_join(unique(gene_family[,c("Gene.Family","enzyme_strat")]),
             by=c("feature"="Gene.Family"))
 
+
+# Split the feature column by ":"
+# For example, LINOLENOYL-RXN: (expasy) Long-chain-fatty-acid--CoA ligase [6.2.1.3]|g__Bacteroides.s__Bacteroides_xylanisolvens
+# will be split into two columns: gene_family$Gene.Family$X1 and gene_family$Gene.Family$X2
+# gene_family$Gene.Family$X1 will have LINOLENOYL-RXN and gene_family$Gene.Family$X2 will
+# have (expasy) Long-chain-fatty-acid--CoA ligase [6.2.1.3]|g__Bacteroides.s__Bacteroides_xylanisolvens
+# But those that don't have a ":" will be duplicated (both columns will have the 
+# same contents)
+maaslin.signif.features<-within(maaslin.signif.features,
+                    feature<-data.frame(do.call('rbind',
+                                                  strsplit(as.character(feature),
+                                                           ':', fixed=TRUE))))
+
+
+
+write.table(maaslin.signif.features$feature$X1,
+            file=file.path("./output/rtables",
+                           paste(
+                             paste(format(Sys.time(),format="%Y%m%d"),
+                                   format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                             "maaslin2-singif-gene_family",host,comparison,
+                             paste(custom.levels,collapse = '-'),
+                             "ref",ref.level,".tsv",sep = "-")),
+            row.names = F,col.names = F,quote = F,sep = "\t")
 
 maaslin.signif.decreased<-maaslin.signif.features%>%
   as_tibble()%>%
@@ -561,7 +586,7 @@ ggsave(paste0("./images/barplots/",
 
 
 # Downstream analysis on pathabundance ####
-maaslin.workspace.pathabundance.datetime<-"20240524_17_30_26"
+maaslin.workspace.pathabundance.datetime<-"20240621_19_16_03"
 comparison<-"age"
 host<-"NMR"
 ref.level<-"agegroup0_10" # choose the reference level
@@ -826,3 +851,71 @@ for (image.format in image.formats){
          units = "px",dpi=300,device = image.format)
   
 }
+
+
+# Dominant gene families and pathways? ####
+gene_family<-gene_family%>%
+  left_join(custom.md,by="Sample")
+# Gene families are already in CPM units
+gene_family<-gene_family%>%
+  rename("AbundanceCPM"=value)%>%
+  group_by(class,Sample)%>%
+  mutate(TotalSample=sum(AbundanceCPM))%>%
+  group_by_at(c("class","Sample","Gene.Family"))%>%
+  mutate(RelativeAbundanceCPM=AbundanceCPM/TotalSample*100)%>%
+  group_by(class)%>% # group by class (animal host),
+  mutate(TotalClass=sum(AbundanceCPM))%>%
+  group_by_at(c("class","Gene.Family"))%>%
+  mutate(TotalGene.Family=sum(AbundanceCPM))%>%
+  mutate(MeanRelativeAbundanceCPM=TotalGene.Family/TotalClass*100)#%>%
+  # select(-TotalClass,-TotalSample)
+
+  
+# gene_family<-gene_family%>%
+#   group_by(agegroup)%>% # group by class (animal host),
+#   mutate(TotalAgegroup=sum(AbundanceCPM))%>%
+#   group_by(agegroup,Species)%>%
+#   mutate(TotalGene.FamilyAge=sum(AbundanceCPM))%>%
+#   mutate(MeanRelativeAbundanceCPMAgegroup=TotalGene.FamilyAge/TotalAgegroup*100)
+
+
+dominant.gene_families<-gene_family%>%
+  group_by(Gene.Family)%>%
+  arrange(-MeanRelativeAbundanceCPM)%>%
+  distinct(Gene.Family,.keep_all = T)%>%
+  select(-TotalClass,-TotalSample,-TotalGene.Family,-class,-animal)%>%
+  head(10)%>%
+  pull(Gene.Family)
+
+pretty.level.names<-names(table(custom.md$old_agegroup))
+names(pretty.level.names)<-names(table(custom.md$agegroup))
+custom.fill<-c("salmon","lightblue3")
+names(custom.fill)<-custom.levels
+
+sample.levels<-custom.md%>%
+  select(Sample,agegroup)%>%
+  arrange(agegroup)%>%
+  distinct()
+sample.levels$Sample<-factor(sample.levels$Sample,
+                             levels=sample.levels$Sample)
+
+gene_family%>%
+  filter(Gene.Family%in%dominant.gene_families)%>%
+  mutate(Gene.Family=factor(Gene.Family,levels=dominant.gene_families))%>%
+  ggplot(aes(x=Sample,y=RelativeAbundanceCPM,fill=factor(agegroup)))+
+  geom_bar(stat="identity")+
+  facet_wrap(~Gene.Family,
+             scales = "free",
+             ncol=2)+
+  scale_color_manual(breaks = pretty.level.names,
+                     labels=unname(pretty.level.names))+
+  scale_x_discrete(labels=pretty.level.names,
+                   limits=sample.levels$Sample)+
+  scale_fill_manual(values = custom.fill,
+                    labels=pretty.level.names)
+
+
+
+gene_family%>%
+  group_by(Sample)%>%
+  summary()
