@@ -23,6 +23,8 @@ kraken2-build --download-library fungi --db ${kraken2_db_dir}
 kraken2-build --download-library plant --db ${kraken2_db_dir}
 kraken2-build --download-library protozoa --db ${kraken2_db_dir}
 kraken2-build --download-library plasmid --db ${kraken2_db_dir}
+kraken2-build --add-to-library ~/common_data/reference_genomes/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna  \
+  --db ${kraken2_db_dir}
 ### nt is for fragments of novel organisms (e.g. 16S rRNA gene) that don't have full genomes
 #kraken2-build --download-library nt --db ${kraken2_db_dir}
 ## Build the database: uses taxonomy and library
