@@ -18,7 +18,7 @@ REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 
 # mkdir ~/common_data
 # mkdir ~/common_data/reference_genomes
-#mkdir output
+# mkdir output
 # mkdir output/qc_pipeline
 #mkdir output/qc_pipeline/fastqc_output
 #mkdir output/qc_pipeline/multiqc_output
@@ -45,8 +45,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # conda config --add channels bioconda
 # conda config --add channels conda-forge
 # conda config --add channels biobakery
-# # Create conda environment
-# conda create -yqn qc-tools -c bioconda bowtie2 cutadapt samtools trf fastqc multiqc seqtk bbmap
+# # Activate conda environment
 conda activate qc-tools 
 # Rename files
 # for FILE in nmrF*.fq.gz; do mv "$FILE" $(echo "$FILE" | sed 's/nmrF_//'); done
@@ -100,6 +99,11 @@ conda activate qc-tools
 # mv hs37d5ss.fa human_decoy.fa
 # unzip ${reference_genomes_dir}/*.zip
 # mv ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna DMR_v1.0_HiC_genomic.fna
+# Prepare NMR genome for Kraken2 database
+#sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna > sed1_Heter_glaber.v1.7_hic_pac_genomic.fna
+#sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|10181/' sed1_Heter_glaber.v1.7_hic_pac_genomic.fna > Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna
+
+
 # # Merge them all into one FASTA file
 # cat ${reference_genomes_dir}/*genomic.fna > ${reference_genomes_dir}/all_hosts_reference.fasta 
 # cat ${reference_genomes_dir}/phiX174.fasta >>${reference_genomes_dir}/all_hosts_reference.fasta
@@ -338,4 +342,3 @@ done
 fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_output_decontam_dir}
 ## 5.2 Run MultiQC on decontaminated data
 multiqc ${fastqc_output_decontam_dir} --outdir ${multiqc_output_dir}
-
