@@ -183,6 +183,7 @@ Output reports are saved in the
 
 # Required packages for the conda environment
 Name                    Version                   Build    Channel
+```{bash}
 _libgcc_mutex             0.1                 conda_forge    conda-forge
 _openmp_mutex             4.5                       2_gnu    conda-forge
 alsa-lib                  1.2.11               hd590300_1    conda-forge
@@ -382,3 +383,4 @@ zlib                      1.2.13               h4ab18f5_6    conda-forge
 zlib-ng                   2.0.7                h0b41bf4_0    conda-forge
 zstandard                 0.19.0          py311hd4cff14_0    conda-forge
 zstd                      1.5.6                ha6fb4c9_0    conda-forge
+```
