@@ -94,16 +94,37 @@ Creates a conda environment for QC procedures and decontamination.
 Note: The environment will also be used in the MAG assembly because it contains samtools.
 
 `bash-scripts/qc-commands-with-bowtie2.sh`:
+fastq_dir=data/fastq/yasuda-fastq
+reference_genomes_dir=~/common_data/reference_genomes
+bowtie2_indices_dir=~/common_data/bowtie2_indices
+fastqc_output_dir=output/qc_pipeline/fastqc_output
+multiqc_output_dir=output/qc_pipeline/multiqc_output
+cutadapt_output_dir=output/qc_pipeline/cutadapt_output
+temp_fasta_dir=output/qc_pipeline/temp_fasta
+trf_output_dir=output/qc_pipeline/trf_output
+fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
+FWD_ADAPTER=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT
+REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
+
 1. Renames FASTQ files to make them shorter because the sequencing company gave the files long 
 names
-2. Download reference genomes for decontamination. We are using genomes of
+2. Downloads reference genomes for decontamination. We are using genomes of
 naked mole-rat (Heter_glaber.v1.7_hic_pac), Damaraland mole-rat (DMR_v1.0_HiC), human (T2T),
 mouse (GRCm39), and human decoy genome (as specified in https://www.cureffi.org/2013/02/01/the-decoy-genome/). 
+
 The reference genomes are merged into one FASTA file and saved in 
 the `~/common_data/reference_genomes` directory 
 as `all_hosts_reference.fasta` file. BowTie2 also builds an index using `all_hosts_reference.fasta` 
 and saves it in the `~/common_data/bowtie2_indices` directory.
+3. Runs FASTQC and MultiQC on raw reads
+4. Trims raw reads with Cutadapt. The parameters are `--max-n` = 0.1 (do not allow > 10% Ns),
+`-q` = 5 (remove bases with basequal < 5), `-O` = 5 (Require MINLENGTH overlap between
+read and adapter for an adapter to be found), --discard-trimmed (discard reads in
+which an adapter was found), `--minimum-length` = 75 (minimum length after trimming). 
 
+The output FASTQ files are saved in the `output/qc_pipeline/cutadapt_output` 
+directory. The Cutadapt command also saves a report for each sample in the same directory.
+5. 
 
 Prepares a BowTie2 index
 # TODO 
