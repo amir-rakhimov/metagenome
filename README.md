@@ -116,6 +116,7 @@ The reference genomes are merged into one FASTA file and saved in
 the `~/common_data/reference_genomes` directory 
 as `all_hosts_reference.fasta` file. BowTie2 also builds an index using `all_hosts_reference.fasta` 
 and saves it in the `~/common_data/bowtie2_indices` directory.
+
 3. Runs FASTQC and MultiQC on raw reads
 4. Trims raw reads with Cutadapt. The parameters are `--max-n` = 0.1 (do not allow > 10% Ns),
 `-q` = 5 (remove bases with basequal < 5), `-O` = 5 (Require MINLENGTH overlap between
