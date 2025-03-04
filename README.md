@@ -88,31 +88,14 @@ into R1 and R2 files)
 ### 3.4 Example files
 
 # Scripts in detail
-`bash-scripts/qc-tools-create-env.sh`:
+## Scripts for QC procedures with BowTie2
+### `code/bash-scripts/qc-tools-create-env.sh`:
 Creates a conda environment for QC procedures and decontamination. 
 
 Note 1: The environment will also be used in the MAG assembly because it contains samtools.
 Note 2: All FASTQ files are gzip-compressed
-`bash-scripts/qc-commands-with-bowtie2.sh`:
 
-fastq_dir=data/fastq/yasuda-fastq
-reference_genomes_dir=~/common_data/reference_genomes
-bowtie2_indices_dir=~/common_data/bowtie2_indices
-fastqc_output_dir=output/qc_pipeline/fastqc_output
-multiqc_output_dir=output/qc_pipeline/multiqc_output
-cutadapt_output_dir=output/qc_pipeline/cutadapt_output
-temp_fasta_dir=output/qc_pipeline/temp_fasta
-trf_output_dir=output/qc_pipeline/trf_output
-fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
-FWD_ADAPTER=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT
-REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
-bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
-bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
-bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
-bowtie2_sorted_bam_dir=output/bowtie2_pipeline/bowtie2_sorted_bam
-bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
-fastqc_output_decontam_dir=output/qc_pipeline/fastqc_output_decontam
-
+### `code/bash-scripts/qc-commands-with-bowtie2.sh`:
 
 1. Renames FASTQ files to make them shorter because the sequencing company gave the files long 
 names
@@ -181,9 +164,81 @@ Output reports are saved in the
 `output/qc_pipeline/fastqc_output` and `output/qc_pipeline/multiqc_output` directories.
 
 
-# Required packages for the conda environment
-Name                    Version                   Build    Channel
+## Scripts for taxonomic analysis with Kraken2 and Bracken
+### `code/bash-scripts/kraken2-create-env.sh`:
+1. Creates a conda environment for Kraken2 pipeline
+
+
+### `code/bash-scripts/kraken2-build.sh`:
+1. Downloads NCBI taxonomy for the reference database. 
+
+# TODO The output taxonomy is located in the `data/kraken2_db/k2_large_2025` directory
+
+2. Downloads databases for taxonomic analysis. The databases are `bacteria`,
+`archaea`, `viral`, `human`, `UniVec_Core`, `fungi`, `plant`, `protozoa`,
+`plasmid`. 
+
+# TODO The output database is located in the `data/kraken2_db/k2_large_2025` directory
+
+3. Adds the naked mole-rat reference genome to the database. The reference 
+genome path is `~/common_data/reference_genomes/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna`.
+
+4. Builds the Kraken2 reference database in the same directory as the previous output
+
+### `code/bash-scripts/kraken2-pipeline.sh`:
 ```{bash}
+kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date}
+kraken2_reports_dir=output/kraken2_pipeline/kraken2_reports
+kraken2_output_dir=output/kraken2_pipeline/kraken2_output
+kraken2_classified_reads_dir=output/kraken2_pipeline/kraken2_classified_reads
+bracken_reports_dir=output/kraken2_pipeline/bracken_reports
+bracken_output_dir=output/kraken2_pipeline/bracken_output
+bracken_krona_txt_dir=output/kraken2_pipeline/bracken_krona_txt
+kraken2_filtered_reads_dir=output/kraken2_pipeline/kraken2_filtered_reads
+krona_html_dir=output/kraken2_pipeline/krona_html
+```
+
+1. Classifies decontaminated samples using Kraken2
+```{bash}
+ kraken2 --paired \
+	--db ${kraken2_db_dir} \
+	--threads ${nthreads} \
+	--minimum-hit-groups 3 \
+	--gzip-compressed \
+	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R1.fastq.gz \
+	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R2.fastq.gz \
+	--output ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2 \
+	--classified-out ${kraken2_classified_reads_dir}/${date_time}_${base_name}_classified_#.fq \
+	--report ${kraken2_reports_dir}/${date_time}_${base_name}_no_minimizer_data.k2report \
+	--confidence ${confidence_kraken2}
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__1.fq
+ gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_classified__2.fq;
+done  2>&1 |tee ${date_time}_kraken2_stdout_no_minimizer_data.txt   
+```
+
+
+
+
+
+
+
+
+
+## Scripts for MAG assembly with MegaHIT and MetaBAT2
+### `code/bash-scripts/mag_assembly-create-env.sh`
+1. 
+
+### `code/bash-scripts/mag_assembly-megahit-metabat2-pipeline.sh`
+1. 
+
+### `code/bash-scripts/mag_assembly-metabat2-pipeline.sh`
+1. 
+
+
+# Required packages for the QC conda environment
+```{bash}
+Name                    Version                   Build    Channel
 _libgcc_mutex             0.1                 conda_forge    conda-forge
 _openmp_mutex             4.5                       2_gnu    conda-forge
 alsa-lib                  1.2.11               hd590300_1    conda-forge
@@ -384,3 +439,5 @@ zlib-ng                   2.0.7                h0b41bf4_0    conda-forge
 zstandard                 0.19.0          py311hd4cff14_0    conda-forge
 zstd                      1.5.6                ha6fb4c9_0    conda-forge
 ```
+
+# Required packages for the Kraken2 conda environment
