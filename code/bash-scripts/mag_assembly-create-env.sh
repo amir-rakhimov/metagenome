@@ -8,12 +8,19 @@ conda config --add channels conda-forge
 
 ## Create a conda environment
 conda create -yqn mag_assembly-tools -c conda-forge -c bioconda megahit \
-    prodigal metabat2 checkm2 gtdbtk busco
+    prodigal checkm2 gtdbtk busco metaeuk
+# Build MetaBAT as docker image
+cd ~
+git clone https://bitbucket.org/berkeleylab/metabat.git
+cd ~/metabat/
+docker build --tag metabat .
+
 conda activate mag_assembly-tools
+cd ~/projects/metagenome
 # Download CheckM2 database
 checkm2 database --download --path ~/projects/metagenome/data/checkm2_db/
 # Dowload GTDB-TK reference database
-export GTDBTK_DATA_PATH=~/miniconda3/envs/mag_assembly-tools/share/gtdbtk-1.7.0/db/
+# export GTDBTK_DATA_PATH=~/miniconda3/envs/mag_assembly-tools/share/gtdbtk-1.7.0/db/
 download-db.sh
 
 # Install QUAST
