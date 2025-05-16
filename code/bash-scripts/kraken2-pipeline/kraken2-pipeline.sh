@@ -13,6 +13,7 @@ kraken2_db_date=20241209
 #date_var=$(date -I|sed 's/-//g')
 #date_time=${date_var}_${time_var}
 date_time=20240409_17_32_40
+start_date_time=$(date +"%F %H:%M:%S")
 ### kmer length for kraken2-build and braken-build
 kmer_len=30
 minimizer_len=26
@@ -31,19 +32,23 @@ nthreads=11
 source ~/miniconda3/etc/profile.d/conda.sh
 ### directory with database and taxonomy
 # kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date} 
-# mkdir output/kraken2_pipeline/kraken2_reports
-# mkdir output/kraken2_pipeline/kraken2_output
-# mkdir output/kraken2_pipeline/bracken_reports
-# mkdir output/kraken2_pipeline/bracken_output
-# mkdir output/kraken2_pipeline/bracken_krona_txt
-# mkdir output/kraken2_pipeline/krona_html
-# mkdir output/fastqc_output
+# mkdir -p output/kraken2_pipeline/kraken2_reports
+# mkdir -p output/kraken2_pipeline/kraken2_output
+# mkdir -p output/kraken2_pipeline/kraken2_classified_reads
+# mkdir -p output/kraken2_pipeline/bracken_reports
+# mkdir -p output/kraken2_pipeline/bracken_output
+# mkdir -p output/kraken2_pipeline/bracken_krona_txt
+# mkdir -p output/kraken2_pipeline/krona_html
+# mkdir -p output/kraken2_pipeline/kraken2_filtered_reads
+project_home_dir=~/projects/metagenome
 kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date}
 kraken2_reports_dir=output/kraken2_pipeline/kraken2_reports
 kraken2_output_dir=output/kraken2_pipeline/kraken2_output
+kraken2_classified_reads_dir=output/kraken2_pipeline/kraken2_classified_reads
 bracken_reports_dir=output/kraken2_pipeline/bracken_reports
 bracken_output_dir=output/kraken2_pipeline/bracken_output
 bracken_krona_txt_dir=output/kraken2_pipeline/bracken_krona_txt
+kraken2_filtered_reads_dir=output/kraken2_pipeline/kraken2_filtered_reads
 krona_html_dir=output/kraken2_pipeline/krona_html
 ### directory with decontaminated fastq files
 bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
@@ -57,6 +62,7 @@ bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
 # conda create -yqn kraken2-tools-2.1.3 -c conda-forge -c bioconda kraken2 krakentools bracken krona bowtie2
 
 conda activate kraken2-tools-2.1.3
+echo "${start_date_time}"
 
 # Build a kraken2 database
 # mkdir -p data/metadata
@@ -100,7 +106,7 @@ conda activate kraken2-tools-2.1.3
 
 # 1. Remove host DNA with bowtie2 (done)
 
-# 2. Classify microbiome samples using Kraken
+# 2. Classify microbiome samples using Kraken2
 
 # We need the database and FASTA file of sequences
 # kraken2 --db $DBNAME seqs.fq
@@ -129,7 +135,7 @@ do
 	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R1.fastq.gz \
 	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R2.fastq.gz \
 	--output ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2 \
-	--classified-out ${kraken2_output_dir}/${date_time}_${base_name}_classified_#.fq \
+	--classified-out ${kraken2_classified_reads_dir}/${date_time}_${base_name}_classified_#.fq \
 	--report ${kraken2_reports_dir}/${date_time}_${base_name}_no_minimizer_data.k2report \
 	--confidence ${confidence_kraken2}
  gzip -9 --best ${kraken2_output_dir}/${date_time}_${base_name}_no_minimizer_data.kraken2
@@ -143,7 +149,7 @@ done  2>&1 |tee ${date_time}_kraken2_stdout_no_minimizer_data.txt
 ### ${bowtie2_decontam_fastq_dir}/${date_time}_${base_name}_decontam_R1.fastq.gz \
 ### ${bowtie2_decontam_fastq_dir}/${date_time}_${base_name}_decontam_R2.fastq.gz \
 ### --output ${kraken2_output_dir}/${base_name}.kraken2 \
-### --classified-out ${kraken2_output_dir}/${base_name}_classified_#.fq \
+### --classified-out ${kraken2_classified_reads_dir}/${base_name}_classified_#.fq \
 
 ### --classified-out will print classified sequences to filename
 ### --report-minimizer-data adds two columns to the report file (#4 and #5) , which
@@ -222,25 +228,188 @@ done
 ### input is
 ### -o
 
+# Tidy up the bracken report
+for FILE in ${bracken_krona_txt_dir}/${date_time}_*_no_minimizer_data.b.krona.txt
+ do
+ # Extract the sample name
+ SAMPLE=$(basename "$FILE" | sed "s/\.b.krona.txt//" | sed "s/${date_time}_//" | sed "s/_no_minimizer_data//")
+ base_name=$(basename "$SAMPLE" )
+ # Define input and output file names
+ input_file="${bracken_krona_txt_dir}/${date_time}_${base_name}_no_minimizer_data.b.krona.txt"
+ output_file="${bracken_krona_txt_dir}/${date_time}_${base_name}_no_minimizer_data_table.tsv"
 
-# Analyse specific sequences: Macadamia integrifolia 
-# 1. Extract reads that were mapped to macadamia
-zcat 20240409_17_32_40_H21_trim_classified__1.fq.gz |grep ^@ |grep "kraken:taxid|60698" > 20240409_17_32_40_H21_trim_classified__1_macadamia.txt
+ # Process the file using awk
+ awk -F'\t' '
+	BEGIN {
+		print "Abundance\tKingdom\tPhylum\tClass\tOrder\tFamily\tGenus\tSpecies"
+	}
+	{
+		abundance = $1
+		kingdom = ""
+		phylum = ""
+		class = ""
+		order = ""
+		family = ""
+		genus = ""
+		species = ""
+
+		for (i = 2; i <= NF; i++) {
+			if ($i ~ /^k__/) kingdom = $i
+			else if ($i ~ /^p__/) phylum = $i
+			else if ($i ~ /^c__/) class = $i
+			else if ($i ~ /^o__/) order = $i
+			else if ($i ~ /^f__/) family = $i
+			else if ($i ~ /^g__/) genus = $i
+			else if ($i ~ /^s__/) species = $i
+		}
+
+		print abundance "\t" kingdom "\t" phylum "\t" class "\t" order "\t" family "\t" genus "\t" species
+	}
+' "${input_file}" > "${output_file}"
+done
+
+
+# Analyse specific sequences
+# Cryptomeria japonica: taxid 3369
+# Glycine soja: taxid 3848
+# Ipomoea triloba: taxid 35885 
+# Macadamia integrifolia: taxid 60698
+
+# 1. Extract reads that were mapped to selected taxid
+for FASTQ_FILE in "${kraken2_classified_reads_dir}"/"${date_time}"_*_classified__1.fq.gz
+do 
+  SAMPLE=$(echo "${FASTQ_FILE}" | sed "s/_classified__1\.fq\.gz//"|sed "s/${date_time}_//")
+  base_name=$(basename "$SAMPLE" )
+  for taxid in 3369 3848 35885
+#   for taxid in 338188 10181 823
+  do
+	for readnum in 1 2
+	do
+      zcat "${kraken2_classified_reads_dir}"/"${date_time}"_"${base_name}"_classified__"${readnum}".fq.gz |\
+	    grep --no-group-separator -A 1 -E "@.*kraken:taxid\|$taxid$" | sed "s/@/>/" > \
+	    "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta
+    #   gzip -9 --best \
+	#     "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta;
+	done
+  done
+done
+
 conda activate qc-tools
-# Use seqtk subseq : doesn't work if fastq header begins with "@"
-seqtk subseq 20240409_17_32_40_H21_trim_classified__1.fq.gz 20240409_17_32_40_H21_trim_classified__1_macadamia.txt > H21_r1_macadamia.txt
-seqkit grep -f 20240409_17_32_40_H21_trim_classified__1_macadamia.txt 20240409_17_32_40_H21_trim_classified__1.fq.gz -o H21_r1_macadamia.fq.gz
+mkdir -p ~/common_data/blast_databases
+mkdir -p output/kraken2_pipeline/blast_output
+blast_output_dir=output/kraken2_pipeline/blast_output
+blast_database_path=~/common_data/blast_databases/16S_ribosomal_RNA
+# To download a preformatted NCBI BLAST database, run update_blastdb.pl program followed by any relevant
+# options and the name(s) of the BLAST databases to download
+# update_blastdb.pl --decompress nr [*]
+cd ~/common_data/blast_databases
+update_blastdb.pl --decompress 16S_ribosomal_RNA 
+cd "${project_home_dir}"
 
-# extract  sequences that contain some pattern in the header 
-# -A1 mean print the matching line and 1 line AFTER the match
-zcat 20240409_17_32_40_H21_trim_classified__1.fq.gz |grep --no-group-separator  -A1 "kraken:taxid|60698" >  macadamia_r1.fq
-zcat 20240409_17_32_40_H21_trim_classified__2.fq.gz |grep --no-group-separator  -A1 "kraken:taxid|60698" > macadamia_r2.fq
+#  *** Formatting options
+#  -outfmt <String>
+#    alignment view options:
+#      0 = Pairwise,
+#      1 = Query-anchored showing identities,
+#      2 = Query-anchored no identities,
+#      3 = Flat query-anchored showing identities,
+#      4 = Flat query-anchored no identities,
+#      5 = BLAST XML,
+#      6 = Tabular,
+#      7 = Tabular with comment lines,
+#      8 = Seqalign (Text ASN.1),
+#      9 = Seqalign (Binary ASN.1),
+#     10 = Comma-separated values,
+#     11 = BLAST archive (ASN.1),
+#     12 = Seqalign (JSON),
+#     13 = Multiple-file BLAST JSON,
+#     14 = Multiple-file BLAST XML2,
+#     15 = Single-file BLAST JSON,
+#     16 = Single-file BLAST XML2,
+#     17 = Sequence Alignment/Map (SAM),
+#     18 = Organism Report
 
-sed '1~2s/@/>/g' macadamia_r1.fq > macadamia_r1_blast_input.fq
-sed '1~2s/@/>/g' macadamia_r2.fq > macadamia_r2_blast_input.fq
 
-head -n 2 macadamia_r1_blast_input.fq > try.fq
- 
-blastn -db nt -query try.fq -out results.out -remote
-blastn -db nt -query macadamia_r1_blast_input.fq -out macadamia_r1_blast_results.out -remote
-blastn -db nt -query macadamia_r2_blast_input.fq -out macadamia_r2_blast_results.out -remote
+#    The supported format specifiers for options 6, 7 and 10 are:
+#             qseqid means Query Seq-id
+#                qgi means Query GI
+#            qaccver means Query accession.version
+#               qlen means Query sequence length
+#             sseqid means Subject Seq-id
+#          sallseqid means All subject Seq-id(s), separated by a ';'
+#                sgi means Subject GI
+#             sallgi means All subject GIs
+#            saccver means Subject accession.version
+#            sallacc means All subject accessions
+#               slen means Subject sequence length
+#               qseq means Aligned part of query sequence
+#               sseq means Aligned part of subject sequence
+#              score means Raw score
+#             length means Alignment length
+#             nident means Number of identical matches
+#           positive means Number of positive-scoring matches
+#               gaps means Total number of gaps
+#               ppos means Percentage of positive-scoring matches
+#             frames means Query and subject frames separated by a '/'
+#             qframe means Query frame
+#             sframe means Subject frame
+#               btop means Blast traceback operations (BTOP)
+#             staxid means Subject Taxonomy ID
+#           ssciname means Subject Scientific Name
+#           scomname means Subject Common Name
+#         sblastname means Subject Blast Name
+#          sskingdom means Subject Super Kingdom
+#            staxids means unique Subject Taxonomy ID(s), separated by a ';'
+#                          (in numerical order)
+#          sscinames means unique Subject Scientific Name(s), separated by a ';'
+#          scomnames means unique Subject Common Name(s), separated by a ';'
+#         sblastnames means unique Subject Blast Name(s), separated by a ';'
+#                          (in alphabetical order)
+#         sskingdoms means unique Subject Super Kingdom(s), separated by a ';'
+#                          (in alphabetical order)
+#             stitle means Subject Title
+#         salltitles means All Subject Title(s), separated by a '<>'
+#              qcovs means Query Coverage Per Subject
+#            qcovhsp means Query Coverage Per HSP
+#             qcovus means Query Coverage Per Unique Subject (blastn only)
+
+
+# qacc means Query accession
+# sacc means Subject accession
+# pident means Percentage of identical matches
+# mismatch means Number of mismatches
+# gapopen means Number of gap openings
+# qstart means Start of alignment in query
+# qend means End of alignment in query
+# sstart means Start of alignment in subject
+# send means End of alignment in subject
+# evalue means Expect value
+# bitscore means Bit score
+# sstrand means Subject Strand
+# btop means Blast traceback operations (BTOP) (Similar to CIGAR format in SAM, but more flexible)
+
+# Don't use btop because the output file size will be too big
+for FASTA_FILE in "${kraken2_filtered_reads_dir}"/"${date_time}"_*_taxid_*_R1.fasta
+do 
+  SAMPLE=$(echo "${FASTA_FILE}" | sed "s/_R1\.fasta//"|sed "s/${date_time}_//")
+  base_name=$(basename "$SAMPLE" )
+  for readnum in 1 2
+    do
+	  echo "Running BLAST on ${SAMPLE}_R${readnum}"
+	  blastn -db "${blast_database_path}" \
+	    -query "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_R"${readnum}".fasta \
+		-out "${blast_output_dir}"/"${date_time}"_"${base_name}"_R"${readnum}"_blast_out.txt \
+		-outfmt "7 qacc sacc pident mismatch gapopen qstart qend sstart send evalue bitscore";
+	done
+done
+
+blastn -db "${blast_database_path}" \
+  -query "${kraken2_filtered_reads_dir}"/${date_time}_Y51b_taxid_823_R1.fasta \
+  -out "${blast_output_dir}"/Y51b_blast_823_16s_local-nobtop.txt \
+  -outfmt "7 qacc sacc pident mismatch gapopen qstart qend sstart send evalue bitscore"
+
+# Which matches to select? There's many, so need to filter out
+
+
+end_date_time=$(date +"%F %H:%M:%S")
+echo "${end_date_time}"

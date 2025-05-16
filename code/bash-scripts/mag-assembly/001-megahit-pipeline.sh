@@ -17,16 +17,10 @@ shopt -s nullglob
 # Metaquast is a metagenome assembly evaluation tool
 # MetaBAT2 is a binning software: group contigs into bins (genomes)
 # Metaquast is also used to evaluate the quality of bins
-# CheckM2 assesses the quality of bins
-# GTDB-TK assigns taxonomy to genomes
-# Prodigal is a gene prediction software
-# Prokka annotates contigs to find bacterial genes
-# Metaeuk annotates contigs to find eukaryotic genes
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
 start_date_time=$(date +"%F %H:%M:%S")
-# For binning with MetaBAT2
 megahit_date_time=20250303_17_54_26
 metaquast_megahit_date_time=20250303_17_54_26
 prodigal_date_time=20250303_17_54_26
@@ -117,6 +111,7 @@ echo "${intermediate_date_time}"
 #  is recommended to reduce the complexity of the de Bruijn graph. Quality trimming is also recommended
 # Tip 2. for high-depth generic data, large --k-min (25 to 31) is recommended
 # Tip 3. smaller --k-step, say 10, is more friendly to low-coverage datasets
+
 # 3. Contig QC with QUAST
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -138,12 +133,12 @@ echo "${intermediate_date_time}"
 # Option -r may be specified multiple times or all references may be specified as
 #  a comma-separated list (without spaces!) with a single -r option beforehand
 
-# 5. Extract mapped and unmapped reads
-# 5.0 Use BBmap and samtools
+# 4. Extract mapped and unmapped reads
+# 4.0 Use BBmap and samtools
 conda deactivate
 conda activate qc-tools
 
-# 5.1 Align reads with bbwrap.sh:
+# 4.1 Align reads with bbwrap.sh:
 # Then, convert file _mapped_and_unmapped.sam to _mapped_and_unmapped.bam (samtools view -b)
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -180,7 +175,7 @@ echo "${intermediate_date_time}"
 ###
 
 
-# 5.? Output per contig coverage to cov.txt with pileup.sh:
+# 4.2 Output per contig coverage to cov.txt with pileup.sh:
 # BBMap generates coverage information by internally using Pileup
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -195,7 +190,7 @@ do
 done
 
 
-# 5.2 Extract unmapped reads (SE to unmapped.se.fq and PE to unmapped.pe.fq) (samtools view -u -f4)
+# 4.3 Extract unmapped reads (SE to unmapped.se.fq and PE to unmapped.pe.fq) (samtools view -u -f4)
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 # for FILE in "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"*_mapped_and_unmapped.bam
@@ -229,7 +224,7 @@ echo "${intermediate_date_time}"
 # tee -a appends instead of overwriting 
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-## 5.3 Keep mapped reads then sort
+## 4.4 Keep mapped reads then sort
 # To get only the mapped reads use the parameter F, which works like -v of grep and skips the 
 # alignments for a specific flag (samtools view -b -F 4).
 # Then, sort _either_read_mapped.bam file with mapped reads by coordinate (no options used)
@@ -268,7 +263,7 @@ echo "${intermediate_date_time}"
 # -b output in BAM format
 # -F 4: Exclude unmapped reads. Keep only mapped reads (evem if mate is unmapped)
 
-## 5.6 Filter unmapped read pairs (unmapped to contigs) (samtools view -b -f 12 -F 256)
+## 4.5 Filter unmapped read pairs (unmapped to contigs) (samtools view -b -f 12 -F 256)
 ### SAMtools SAM-flag filter: get unmapped pairs (both reads R1 and R2 unmapped).
 # Then, sort _bothReadsUnmapped.bam file by read name ( -n ) to have paired reads next to each other 
 ### ("${nthreads}" parallel threads, each using up to 5G memory) (samtools sort)
@@ -306,7 +301,7 @@ echo "${intermediate_date_time}"
 # -m : Approximately the maximum required memory per thread
 # samtools fastq: Converts a BAM or CRAM into either FASTQ or FASTA format
 #  depending on the command invoked
-# [NOT RUN] 5.8 For Metabat2, we need to fix NM tags in the _either_read_mapped_sorted.bam file 
+# [NOT RUN] 4.6 For Metabat2, we need to fix NM tags in the _either_read_mapped_sorted.bam file 
 # First, index the contig FASTA file (faidx).
 # Then fix NM tags in the BAM file.
 intermediate_date_time=$(date +"%F %H:%M:%S")
@@ -324,7 +319,7 @@ echo "${intermediate_date_time}"
 #  mv "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted_fixed.bam \
 #    "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam;
 # done
-# 5.9 Compress bam and sam files to save space
+# 4.7 Compress bam and sam files to save space
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 # for FILE in "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"*_mapped_and_unmapped.bam

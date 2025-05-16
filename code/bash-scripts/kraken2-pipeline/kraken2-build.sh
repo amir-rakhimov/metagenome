@@ -12,7 +12,7 @@ kraken2_db_dir=data/kraken2_db/k2_large_20240307
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate kraken2-tools-2.1.3
 ## Download taxonomy
-#kraken2-build --download-taxonomy --db ${kraken2_db_dir}
+kraken2-build --download-taxonomy --db ${kraken2_db_dir}
 ## Download databases
 kraken2-build --download-library bacteria --db ${kraken2_db_dir}
 kraken2-build --download-library archaea --db ${kraken2_db_dir}

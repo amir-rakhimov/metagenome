@@ -48,73 +48,82 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # # Activate conda environment
 conda activate qc-tools 
 # Rename files
-# for FILE in nmrF*.fq.gz; do mv "$FILE" $(echo "$FILE" | sed 's/nmrF_//'); done
-# for FILE in *DKDN230040401-1A_HC3LYDSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040401-1A_HC3LYDSX7/wms/'); done
-# for FILE in *DKDN230040401-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040401-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040402-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040402-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040410-1A_HC52YDSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040410-1A_HC52YDSX7/wms/'); done
-# for FILE in *DKDN230040409-1A_HC3LYDSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040409-1A_HC3LYDSX7/wms/'); done
-# for FILE in *DKDN230040409-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040409-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040411-1A_HC52YDSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040411-1A_HC52YDSX7/wms/'); done
-# for FILE in *DKDN230040407-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040407-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040408-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040408-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040406-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040406-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040403-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040403-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040404-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040404-1A_HC557DSX7/wms/'); done
-# for FILE in *DKDN230040405-1A_HC3LYDSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040405-1A_HC3LYDSX7/wms/'); done
-# for FILE in *DKDN230040405-1A_HC557DSX7*.fq.gz; 
-#   do mv "$FILE" $(echo "$FILE" | sed 's/DKDN230040405-1A_HC557DSX7/wms/'); done
+cd "${fastq_dir}"
+for FILE in nmrF*.fq.gz; do mv "${FILE}" $(echo "${FILE}" | sed 's/nmrF_//'); done
+for FILE in *DKDN230040401-1A_HC3LYDSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040401-1A_HC3LYDSX7/wms/'); done
+for FILE in *DKDN230040401-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040401-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040402-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040402-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040410-1A_HC52YDSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040410-1A_HC52YDSX7/wms/'); done
+for FILE in *DKDN230040409-1A_HC3LYDSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040409-1A_HC3LYDSX7/wms/'); done
+for FILE in *DKDN230040409-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040409-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040411-1A_HC52YDSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040411-1A_HC52YDSX7/wms/'); done
+for FILE in *DKDN230040407-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040407-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040408-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040408-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040406-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040406-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040403-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040403-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040404-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040404-1A_HC557DSX7/wms/'); done
+for FILE in *DKDN230040405-1A_HC3LYDSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040405-1A_HC3LYDSX7/wms/'); done
+for FILE in *DKDN230040405-1A_HC557DSX7*.fq.gz; 
+  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040405-1A_HC557DSX7/wms/'); done
+cd "${project_home_dir}"
 
 # Download reference genomes
-### Heter_glaber.v1.7_hic_pac
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
-#   --output ${reference_genomes_dir}/Heter_glaber.v1.7_hic_pac.zip
-### There is also a new assembly that is used by Ensembl: Naked_mole-rat_maternal
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
-#   --output ${reference_genomes_dir}/Naked_mole-rat_maternal.zip
-### DMR_v1.0_HiC Damaraland mole-rat
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
-#   --output ${reference_genomes_dir}/DMR_v1.0_HiC.zip
-# ### Human T2T
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_009914755.1/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
-#   --output ${reference_genomes_dir}/T2T.zip
-# ### Mouse GRCm39
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_000001635.27/download?include_annotation_type=GENOME_FASTA,GENOME_GFF,RNA_FASTA,CDS_FASTA,PROT_FASTA,SEQUENCE_REPORT \
-#   --output ${reference_genomes_dir}/GRCm39.zip
-# ### human decoy genome
-# wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5ss.fa.gz
-# mv hs37d5ss.fa human_decoy.fa
-# unzip ${reference_genomes_dir}/*.zip
-# mv ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna DMR_v1.0_HiC_genomic.fna
-# Prepare NMR genome for Kraken2 database
-#sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna > sed1_Heter_glaber.v1.7_hic_pac_genomic.fna
-#sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|10181/' sed1_Heter_glaber.v1.7_hic_pac_genomic.fna > Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna
+## Heter_glaber.v1.7_hic_pac
+curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA \
+  --output "${reference_genomes_dir}"/Heter_glaber.v1.7_hic_pac.zip
+## There is also a new assembly that is used by Ensembl: Naked_mole-rat_maternal
+curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA \
+  --output "${reference_genomes_dir}"/Naked_mole-rat_maternal.zip
+## DMR_v1.0_HiC Damaraland mole-rat
+curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA \
+  --output "${reference_genomes_dir}"/DMR_v1.0_HiC.zip
+### Human T2T
+curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_009914755.1/download?include_annotation_type=GENOME_FASTA \
+  --output "${reference_genomes_dir}"/T2T.zip
+### Mouse GRCm39
+curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_000001635.27/download?include_annotation_type=GENOME_FASTA \
+  --output "${reference_genomes_dir}"/GRCm39.zip
+### human decoy genome
+wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5ss.fa.gz
+mv hs37d5ss.fa human_decoy.fa
+# TODO: check and rewrite if needed
+# for file in ncbi_dataset/data/*/protein.faa
+# do
+# directory_name=$(dirname $file)
+# accession=$(basename $directory_name)
+# mv "${file}" "${directory_name}/${accession}_$(basename $file)"
+# done
 
+mv ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna DMR_v1.0_HiC_genomic.fna
+# Prepare NMR genome for Kraken2 database
+sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna > \
+ sed1_Heter_glaber.v1.7_hic_pac_genomic.fna
+sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|10181/' sed1_Heter_glaber.v1.7_hic_pac_genomic.fna > \
+ Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna
 
 # # Merge them all into one FASTA file
-# cat ${reference_genomes_dir}/*genomic.fna > ${reference_genomes_dir}/all_hosts_reference.fasta 
-# cat ${reference_genomes_dir}/phiX174.fasta >>${reference_genomes_dir}/all_hosts_reference.fasta
+cat "${reference_genomes_dir}"/*genomic.fna > "${reference_genomes_dir}"/all_hosts_reference.fasta 
+cat "${reference_genomes_dir}"/phiX174.fasta >>"${reference_genomes_dir}"/all_hosts_reference.fasta
 # # Build a bowtie2 large index
-# bowtie2-build --large-index --threads ${nthreads} ${reference_genomes_dir}/all_hosts_reference.fasta \
-#   ${bowtie2_indices_dir}/all_hosts_reference
+bowtie2-build --large-index --threads ${nthreads} "${reference_genomes_dir}"/all_hosts_reference.fasta \
+  ${bowtie2_indices_dir}/all_hosts_reference
 
 # The QC workflow is this:
 ### 1. Run FastQC and trim overrepresented sequences
 ### 1.1 Run MultiQC
-### 1.2 Trim overrepresented sequences using Fastqc reports
 ### 2. Run Cutadapt
 ### Three filtering steps:
 ### (1) Remove reads containing adapters.
@@ -128,14 +137,10 @@ conda activate qc-tools
 ### 5. Run FastQC and MultiQC on decontaminated data as a final check
 
 # 1. Run FastQC and trim overrepresented sequences
-# fastqc ${fastq_dir}/*.fq.gz --outdir ${fastqc_output_dir}
+fastqc "${fastq_dir}"/*.fq.gz --outdir "${fastqc_output_dir}"
 ## 1.1 Run MultiQC
-# multiqc ${fastqc_output_dir}/ --outdir ${multiqc_output_dir}
+multiqc ${fastqc_output_dir}/ --outdir ${multiqc_output_dir}
 
-## 1.2 Trim overrepresented sequences using Fastqc reports
-#############
-# TODO
-#############################################################
 # 2. Run Cutadapt
 ### Three filtering steps:
 ### (1) Remove reads containing adapters.
@@ -168,6 +173,7 @@ done
 #   -g ${FWD_ADAPTER} -G ${REV_ADAPTER} \         ## 5' adapter
 #   --max-n 0.1 \                                 ## do not allow > 10% Ns
 #   -q 5 \                                        ## remove bases with basequal < 5
+#   -O 5  \                ## Require MINLENGTH overlap between read and adapter for an adapter to be found.
 #   --minimum-length (readlength/2) \             ## minimum length after trimming
 #   --discard-trimmed \                           ## Discard reads in which an adapter was found
 #   -o read1_trimmed.fq -p read2_trimmed.fq \     ## outputs
@@ -322,8 +328,9 @@ done
 ###-F 256    # Do not (  -F  ) extract alignments which are: <not primary alignment>
 
 ## 1.4 Split paired-end reads into separated fastq files .._R1 .._R2
-### sort bam file by read name ( -n ) to have paired reads next to each other 
+### First, sort bam file by read name ( -n ) to have paired reads next to each other 
 ### (${nthreads_sort} parallel threads, each using up to 5G memory)
+### Then, filter and split
 for FILE in ${bowtie2_filtered_bam_dir}/*bothReadsUnmapped.bam 
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_bothReadsUnmapped\.bam//")
