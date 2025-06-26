@@ -4,13 +4,67 @@ shopt -s nullglob
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
-metabat2_date_time=20250417_23_21_29
+# metabat2_date_time=20250417_23_21_29
+metabat2_date_time=20250612_13_37_47
+drep_date_time="${date_time}"
 seqkit_stats_date_time="${date_time}"
+coverm_date_time="${date_time}"
+nthreads=40
+nthreads_sort=35
+mem_req=8G
+mem_req_sort=4G
 project_home_dir=~/projects/metagenome
-seqkit_output_dir=output/mag_assembly/seqkit_output
+bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
+output_dir=~/projects/metagenome/output/mag_assembly
 metabat2_output_dir=output/mag_assembly/metabat2_output
+drep_output_dir=output/mag_assembly/drep_output
+seqkit_output_dir=output/mag_assembly/seqkit_output
+coverm_output_dir=output/mag_assembly/coverm_output
+
+cd ${project_home_dir}
+mkdir -p output/mag_assembly/seqkit_output
+mkdir -p output/mag_assembly/coverm_output
+conda activate mag_assembly-tools
+# CoverM calculates abundance of dereplicated bins
+## At species level (95% ANI)
+for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
+do 
+ SAMPLE=$(echo "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
+ base_name=$(basename "$SAMPLE" )
+ echo "Running CoverM on ${base_name}"
+ coverm genome \
+  --coupled "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R1.fastq.gz \
+    "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R2.fastq.gz \
+  --genome-fasta-files \
+  "${drep_output_dir}"/"${drep_date_time}"_sa_95perc/dereplicated_genomes/"${drep_date_time}"_"${base_name}"_bin.*.fa \
+  -t "${nthreads}" \
+  -m mean relative_abundance covered_fraction \
+  -o "${coverm_output_dir}"/"${coverm_date_time}"_"${base_name}"_coverm_output.tsv |
+  2>&1 |tee "${coverm_output_dir}"/"${coverm_date_time}"_"${base_name}"_coverm_report.txt
+
+
+
+ 
+
+done
+
+coverm genome \
+  --coupled sample_1.1.fq.gz sample_1.2.fq.gz \
+  --genome-fasta-files \
+  "${drep_output_dir}"/"${drep_date_time}"_sa_95perc/dereplicated_genomes/*fa \
+  -t "${nthreads}" \
+  -m mean relative_abundance covered_fraction \
+  -o "${coverm_output_dir}"/"${coverm_date_time}"_output_coverm.tsv
+
+
+## At strain level (99% ANI)
+coverm genome \
+   "${drep_output_dir}"/"${drep_date_time}"_sa_99perc/dereplicated_genomes/*fa
+
+
+
 conda activate qc-tools
-# Calculate statistics for each contig of each bin: contig IDs, contig lengths, GC %, 
+# Calculate statistics for each contig in each bin: contig IDs, contig lengths, GC %, 
 # AT %. Output is a tab-separated file for each bin which is located in a
 # directory that corresponds to the sample where the bin was generated.
 for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"*bins
