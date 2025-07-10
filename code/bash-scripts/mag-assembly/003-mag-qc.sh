@@ -3,9 +3,9 @@
 #SBATCH -N 4
 #SBATCH -n 40
 #SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250625_14-52-mag-qc
-#SBATCH --output jobreports/20250625_14-52-mag-qc-out.txt
-#SBATCH --error jobreports/20250625_14-52-mag-qc-out.txt
+#SBATCH -J 20250627_14-27-mag-qc
+#SBATCH --output jobreports/20250627_14-27-mag-qc-out.txt
+#SBATCH --error jobreports/20250627_14-27-mag-qc-out.txt
 #I am requesting 4 nodes containing 40 CPUs, with 8 GB memory per CPU. Total: 320 GB
 source ~/miniconda3/etc/profile.d/conda.sh
 shopt -s nullglob
@@ -118,6 +118,16 @@ conda activate mag_assembly-tools
 #  "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv > \
 #  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv
 
+# Prepare the high-quality MAG information for dRep.
+# The file must be in .csv format and have the columns "genome"(basename of
+# .fasta file of that genome), "completeness", and "contamination".
+#  Columns “completeness” and “contamination” should be 0-100, and “genome” is the filename of the genome.
+# awk -F"\t" -v OFS="," 'FNR==1  {printf  "%s,%s,%s", "genome", "completeness", "contamination"; 
+#       print "";} 
+#     FNR>1 {print $1".fa",$2,$3} ' \
+#  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv > \
+#  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_drep_info.csv
+
 # Write high-quality bin paths into a separate file
 # awk 'NR>1 {print $1}' "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv |\
 #  while read -r name; do
@@ -150,7 +160,8 @@ mkdir -p output/mag_assembly/drep_output/"${drep_date_time}"_sa_99perc
 # dRep at species level: secondary clustering threshold of 95% ANI
 dRep dereplicate \
  -g "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
- -p "${nthreads_sort}" \
+ -p "${nthreads}" \
+ --genomeInfo "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_drep_info.csv \
  -pa 0.95 \
  -sa 0.95 \
  -comp 80 \
@@ -167,7 +178,8 @@ echo "${intermediate_date_time}"
 # dRep at strain level: secondary clustering threshold of 99% ANI
 dRep dereplicate \
  -g "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
- -p "${nthreads_sort}" \
+ -p "${nthreads}" \
+ --genomeInfo "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_drep_info.csv \
  -pa 0.95 \
  -sa 0.99 \
  -comp 80 \
@@ -233,15 +245,16 @@ echo "${intermediate_date_time}"
 #  <output_drep_selected_high_qual_mags> \
 #  <output_drep_missing_high_qual_mags>
 
-# 126 high-quality derpelicated MAGs
-# 187 MAGs removed (don't forget the header line)
+# 128 high-quality derpelicated MAGs at >95% level
+# 192 MAGs removed (don't forget the header line)
 ./code/bash-scripts/mag-assembly/filter-drep-mags.sh \
  "${drep_output_dir}"/"${drep_date_time}"_sa_95perc/dereplicated_genomes \
  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv \
  "${checkm2_output_dir}"/"${checkm2_date_time}"_drep_selected_bins_sa_95perc.txt \
  "${checkm2_output_dir}"/"${checkm2_date_time}"_drep_missing_files_sa_95perc.log
 
-
+# 138 high-quality derpelicated MAGs at >95% level
+# 182 MAGs removed (don't forget the header line)
 ./code/bash-scripts/mag-assembly/filter-drep-mags.sh \
  "${drep_output_dir}"/"${drep_date_time}"_sa_99perc/dereplicated_genomes \
  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv \
