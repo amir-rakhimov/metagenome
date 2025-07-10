@@ -8,6 +8,8 @@ shopt -s nullglob
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
+
+# This script quantifies genes.
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time="${date_var}_${time_var}"
@@ -41,9 +43,11 @@ mkdir -p output/mag_assembly/gene_lengths
 mkdir -p output/mag_assembly/tpm_files
 
 echo "${start_date_time}"
+
+# 0. Activate conda environment
 conda activate qc-tools
 
-# Removing duplicates in the sorted and indexed BAM file
+# 1. Removing duplicates in the sorted and indexed BAM file
 # https://www.biostars.org/p/15818/
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -78,7 +82,7 @@ echo "${intermediate_date_time}"
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
-# Extract all non-redundant protein locus tags (unique for each sample)
+# 2. Extract all non-redundant protein locus tags (unique for each sample)
 # echo "Extracting all non-redundant protein locus tags (unique for each sample)"
 # grep "^>" \
 #  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_rep_seq.fasta | \
@@ -89,7 +93,7 @@ echo "${intermediate_date_time}"
 # mmseqs_clustered_ids_file="${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_ids.txt
 
 
-# Counting mapped reads per gene
+# 3. Counting mapped reads per gene
 # Convert Prokka output into GTF then count the number of reads mapped to each gene with htseq
 # https://metagenomics-workshop.readthedocs.io/en/latest/annotation/quantification.html
 for FILE_DIR in "${prokka_output_dir}"/"${prokka_date_time}"*_prokka
@@ -163,7 +167,7 @@ done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
-# Normalizing to Transcripts Per Million (TPM)
+# 4. Normalizing to Transcripts Per Million (TPM)
 # The gene lengths we can get from the GTF file that you used with htseq:
 # for FILE in "${prokka_gtf_dir}"/"${prokka_date_time}"*_pred_prokka.map.gtf
 # do 

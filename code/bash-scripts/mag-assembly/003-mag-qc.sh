@@ -13,10 +13,12 @@ shopt -s nullglob
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
 
-# Metaquast is a metagenome assembly evaluation tool
-# Metaquast is also used to evaluate the quality of bins
-# CheckM2 assesses the quality of bins
-# dRep dereplicates MAGs to retain unique ones
+# This script evaluates quality of assembled bins from MetaBAT2 using MetaQUAST and CheckM2.
+# First, we use MetaQUAST (but it's not used in the subsequent analysis). Then, we run 
+# CheckM2 on bins. Only high-quality MAGs (>=90% completeness, <=5% contamination)
+# are used for the subsequent analysis. The statistics from CheckM2 is used for bin
+# dereplication with dRep to retain unique MAGs. dRep is run at 95% and 99% ANI.
+# The final output: CheckM2 statistics and dereplicated MAGs (copies of fasta files from MetaBAT2).
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
@@ -48,100 +50,100 @@ mkdir -p output/mag_assembly/metaquast_output
 # 0. Show the current time for logging
 echo "${start_date_time}"
 
-# 6.4 QC MetaBAT2 bins with QUAST
+# 1. QC MetaBAT2 bins with QUAST
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-# for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"*bins
+for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"*bins
 # # # for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"_2D14_bins \
 # # #  "${metabat2_output_dir}"/"${metabat2_date_time}"_G14_bins \
 # # #  "${metabat2_output_dir}"/"${metabat2_date_time}"_H15_bins 
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/${metabat2_date_time}_//" | sed "s/_bins//")
-#  base_name=$(basename "$SAMPLE" )
-#  echo "Running MetaQuast on ${base_name} bins" 
-#  "${metaquast_script_dir}"/metaquast.py \
-#     "${metabat2_output_dir}"/"${metabat2_date_time}"_"${base_name}"_bins/"${metabat2_date_time}"_"${base_name}"_bin* \
-#     -o "${metaquast_output_dir}"/"${metaquast_metabat2_date_time}"_metaquast_metabat2_"${base_name}" \
-#     --threads "${nthreads}" \
-#     2>&1 |tee "${metaquast_output_dir}"/"${metaquast_metabat2_date_time}"_"${base_name}"_metaquast_metabat2_report.txt;
-# done
+do 
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/${metabat2_date_time}_//" | sed "s/_bins//")
+ base_name=$(basename "$SAMPLE" )
+ echo "Running MetaQuast on ${base_name} bins" 
+ "${metaquast_script_dir}"/metaquast.py \
+    "${metabat2_output_dir}"/"${metabat2_date_time}"_"${base_name}"_bins/"${metabat2_date_time}"_"${base_name}"_bin* \
+    -o "${metaquast_output_dir}"/"${metaquast_metabat2_date_time}"_metaquast_metabat2_"${base_name}" \
+    --threads "${nthreads}" \
+    2>&1 |tee "${metaquast_output_dir}"/"${metaquast_metabat2_date_time}"_"${base_name}"_metaquast_metabat2_report.txt;
+done
 
-# 6.6 CheckM2
-# conda activate checkm2-env
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-# echo "${intermediate_date_time}"
-# echo "Running CheckM2"
-# for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"*bins
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/${metabat2_date_time}_//"| sed "s/_bins//")
-#  base_name=$(basename "$SAMPLE" )
-#  echo "Running CheckM2 on ${base_name}" 
-#  checkm2 predict --threads "${nthreads_sort}" \
-#    -x fa \
-#    --database_path "${project_home_dir}"/data/checkm2_db/CheckM2_database/uniref100.KO.1.dmnd \
-#    --input "${metabat2_output_dir}"/"${metabat2_date_time}"_"${base_name}"_bins \
-#    --output-directory "${checkm2_output_dir}"/"${checkm2_date_time}"_"${base_name}"_checkm2 \
-#    2>&1 |tee "${checkm2_output_dir}"/"${checkm2_date_time}"_"${base_name}"_checkm2_report.txt;
-# done
+# 2. CheckM2
+conda activate checkm2-env
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+echo "Running CheckM2"
+for FILE_DIR in "${metabat2_output_dir}"/"${metabat2_date_time}"*bins
+do 
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/${metabat2_date_time}_//"| sed "s/_bins//")
+ base_name=$(basename "$SAMPLE" )
+ echo "Running CheckM2 on ${base_name}" 
+ checkm2 predict --threads "${nthreads_sort}" \
+   -x fa \
+   --database_path "${project_home_dir}"/data/checkm2_db/CheckM2_database/uniref100.KO.1.dmnd \
+   --input "${metabat2_output_dir}"/"${metabat2_date_time}"_"${base_name}"_bins \
+   --output-directory "${checkm2_output_dir}"/"${checkm2_date_time}"_"${base_name}"_checkm2 \
+   2>&1 |tee "${checkm2_output_dir}"/"${checkm2_date_time}"_"${base_name}"_checkm2_report.txt;
+done
 # # Usage: checkm2 predict --threads 30 --input <folder_with_bins> --output-directory <output_folder> 
 # conda deactivate
 
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 conda activate mag_assembly-tools
-# Merge CheckM2 quality reports
-# first_file=true
-# for file in "${checkm2_output_dir}"/"${checkm2_date_time}"*_checkm2/quality_report.tsv; do
-#   if [ "${first_file}" = true ]; then
-#     cat "${file}"          # print header + data
-#     first_file=false
-#   else
-#     tail -n +2 "${file}"   # skip header, print only data
-#   fi
-# done > "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv
+# 2.1 Merge CheckM2 quality reports
+first_file=true
+for file in "${checkm2_output_dir}"/"${checkm2_date_time}"*_checkm2/quality_report.tsv; do
+  if [ "${first_file}" = true ]; then
+    cat "${file}"          # print header + data
+    first_file=false
+  else
+    tail -n +2 "${file}"   # skip header, print only data
+  fi
+done > "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv
 
-# # 1347 MAGs in total
-# awk 'NR > 1 { count++ }
-#   END {print "There are " count " MAGs in total." }
-#   '  "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv 
+# 2.2 1347 MAGs in total
+awk 'NR > 1 { count++ }
+  END {print "There are " count " MAGs in total." }
+  '  "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv 
 
-# Select high-quality MAGs (>=90% completeness, <=5% contamination): 313
+# 2.3 Select high-quality MAGs (>=90% completeness, <=5% contamination): 313
 # Completeness is column #2, contamination is column #3
-# awk ' NR > 1 && $2 >= 90 && $3 <= 5 { count++ }
-#   END {
-#     print "There are " count " MAGs with completeness >= 90% and contamination <= 5%."
-#   }
-#  ' "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv
+awk ' NR > 1 && $2 >= 90 && $3 <= 5 { count++ }
+  END {
+    print "There are " count " MAGs with completeness >= 90% and contamination <= 5%."
+  }
+ ' "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv
 
 # Subset the high-quality MAGs and write into a separate table
-# awk 'NR==1 || ($2 >= 90 && $3 <= 5)' \
-#  "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv > \
-#  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv
+awk 'NR==1 || ($2 >= 90 && $3 <= 5)' \
+ "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv > \
+ "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv
 
-# Prepare the high-quality MAG information for dRep.
+# 2.4 Prepare the high-quality MAG information for dRep.
 # The file must be in .csv format and have the columns "genome"(basename of
 # .fasta file of that genome), "completeness", and "contamination".
 #  Columns “completeness” and “contamination” should be 0-100, and “genome” is the filename of the genome.
-# awk -F"\t" -v OFS="," 'FNR==1  {printf  "%s,%s,%s", "genome", "completeness", "contamination"; 
-#       print "";} 
-#     FNR>1 {print $1".fa",$2,$3} ' \
-#  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv > \
-#  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_drep_info.csv
+awk -F"\t" -v OFS="," 'FNR==1  {printf  "%s,%s,%s", "genome", "completeness", "contamination"; 
+      print "";} 
+    FNR>1 {print $1".fa",$2,$3} ' \
+ "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv > \
+ "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_drep_info.csv
 
-# Write high-quality bin paths into a separate file
-# awk 'NR>1 {print $1}' "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv |\
-#  while read -r name; do
-#   bin_subdir="${name%_bin.*}_bins"
-#   bin_path="${metabat2_output_dir}/${bin_subdir}/${name}.fa"
-#   if [ -f "${bin_path}" ]; then
-#     echo "${bin_path}"
-#   else
-#     echo " ${bin_path}"
-#   fi
-#  done >  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
-#       2> "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths_missing.txt
+# 2.5 Write high-quality bin paths into a separate file
+awk 'NR>1 {print $1}' "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv |\
+ while read -r name; do
+  bin_subdir="${name%_bin.*}_bins"
+  bin_path="${metabat2_output_dir}/${bin_subdir}/${name}.fa"
+  if [ -f "${bin_path}" ]; then
+    echo "${bin_path}"
+  else
+    echo " ${bin_path}"
+  fi
+ done >  "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
+      2> "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths_missing.txt
 
-# Run drep to get unique MAGs
+# 3. Run drep to get unique MAGs
 # dRep dereplicate -g path/to/genomes/*.fasta -p "${nthreads}"  "${drep_output_dir}"
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -157,7 +159,7 @@ echo "${intermediate_date_time}"
 
 mkdir -p output/mag_assembly/drep_output/"${drep_date_time}"_sa_95perc
 mkdir -p output/mag_assembly/drep_output/"${drep_date_time}"_sa_99perc
-# dRep at species level: secondary clustering threshold of 95% ANI
+# 3.1 dRep at species level: secondary clustering threshold of 95% ANI
 dRep dereplicate \
  -g "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
  -p "${nthreads}" \
@@ -175,7 +177,7 @@ dRep dereplicate \
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
-# dRep at strain level: secondary clustering threshold of 99% ANI
+# 3.2 dRep at strain level: secondary clustering threshold of 99% ANI
 dRep dereplicate \
  -g "${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags_paths.txt \
  -p "${nthreads}" \
@@ -215,35 +217,35 @@ echo "${intermediate_date_time}"
 #                       larger  = max((aligned length / genome 1), (aligned_length / genome2))
 #                        (default: larger)
 
-# Filter the dereplicated genomes to keep high-quality ones
-# dereplicated_mags_dir="${drep_output_dir}"/"${drep_date_time}"_sa_95perc/dereplicated_genomes
-# checkm2_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv
-# drep_selected_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_drep_selected_bins.txt
-# drep_missing_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_drep_missing_files.log
-# drep_ani_perc=95
+# 3.3 Filter the dereplicated genomes to keep high-quality ones
+dereplicated_mags_dir="${drep_output_dir}"/"${drep_date_time}"_sa_95perc/dereplicated_genomes
+checkm2_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_high_quality_mags.tsv
+drep_selected_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_drep_selected_bins.txt
+drep_missing_high_qual_mags="${checkm2_output_dir}"/"${checkm2_date_time}"_drep_missing_files.log
+drep_ani_perc=95
 
-# # Clear output files
-# > "$drep_selected_high_qual_mags"
-# > "$drep_missing_high_qual_mags"
+# Clear output files
+> "$drep_selected_high_qual_mags"
+> "$drep_missing_high_qual_mags"
 
-# # Read and process each line
-# while IFS=$'\t' read -r line; do
-#     # Extract the first column (filename)
-#     bin_id=$(echo "$line" | cut -f1)
-#     file=$(echo "$bin_id".fa )
-#     # Check for existence in the target directory
-#     if [ -e "$dereplicated_mags_dir/$file" ]; then
-#         echo -e "$bin_id" >> "$drep_selected_high_qual_mags"
-#     else
-#         echo "$bin_id" >> "$drep_missing_high_qual_mags"
-#     fi
-# done < "$checkm2_high_qual_mags"
+# Read and process each line
+while IFS=$'\t' read -r line; do
+    # Extract the first column (filename)
+    bin_id=$(echo "$line" | cut -f1)
+    file=$(echo "$bin_id".fa )
+    # Check for existence in the target directory
+    if [ -e "$dereplicated_mags_dir/$file" ]; then
+        echo -e "$bin_id" >> "$drep_selected_high_qual_mags"
+    else
+        echo "$bin_id" >> "$drep_missing_high_qual_mags"
+    fi
+done < "$checkm2_high_qual_mags"
 
-# code/bash-scripts/mag-assembly/filter-drep-mags.sh \
-#  <input_dereplicated_mags_dir> \
-#  <input_checkm2_high_qual_mags> \
-#  <output_drep_selected_high_qual_mags> \
-#  <output_drep_missing_high_qual_mags>
+code/bash-scripts/mag-assembly/filter-drep-mags.sh \
+ <input_dereplicated_mags_dir> \
+ <input_checkm2_high_qual_mags> \
+ <output_drep_selected_high_qual_mags> \
+ <output_drep_missing_high_qual_mags>
 
 # 128 high-quality derpelicated MAGs at >95% level
 # 192 MAGs removed (don't forget the header line)

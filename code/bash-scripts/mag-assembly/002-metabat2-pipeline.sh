@@ -13,7 +13,12 @@ shopt -s nullglob
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
 
-# MetaBAT2 is a binning software: group contigs into bins (genomes)
+# This script uses MetaBAT2 to bin contigs (group contigs into bins (genomes)).
+# MetaBAT2 is run locally, not in conda. Be careful to have bams sorted first!
+# Before running metabat2, we need to create depth files with jgi_summarize_bam_contig_depths.
+# MetaBAT2 creates a separate directory for each sample which contains all the bins.
+# MetaBAT2 is using random seeds, but it's not necessary to set the random seed (results are usually similar).
+# Final output: directories with bins (multi-FASTA files).
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
@@ -46,42 +51,40 @@ mkdir -p output/mag_assembly/bbwrap_refs
 echo "${start_date_time}"
 
 
-# 6. Assemble contigs into bins: MetaBAT2, Metaquast, BUSCO, and CheckM2
+# 1. Assemble contigs into bins with MetaBAT2
 # Be careful to have bams sorted first!
-# 6.1 Activate the environment 
 
-
-# 6.2 Create a depth file
+# 1.1 Create a depth file
 # The columns represent Contig depth per sample, and variation of that depth for a 
 # particular contig in a particular sample.
 # The rows represent all the contigs in the assembly
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-# for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_*.megahit_asm 
+for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_*.megahit_asm 
 # # for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_2D14.megahit_asm \
 # #  "${megahit_output_dir}"/"${megahit_date_time}"_G14.megahit_asm \
 # #  "${megahit_output_dir}"/"${megahit_date_time}"_H15.megahit_asm
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
-#  base_name=$(basename "$SAMPLE" )
-#  echo "Running jgi_summarize_bam_contig_depths on ${base_name}"
-#  jgi_summarize_bam_contig_depths \
-#     --percentIdentity 97 \
-#     --minContigLength 1000 \
-#     --minContigDepth 1.0  \
-#     --referenceFasta "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
-#     "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam \
-#     --outputDepth "${bam_contig_depths_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}".depth.txt \
-#     2>&1 |tee  "${metabat2_reports_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}"_jgi_summarize_bam_contig_depths_report.txt
-#  gzip -9 --best "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam;
-# done
+do 
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
+ base_name=$(basename "$SAMPLE" )
+ echo "Running jgi_summarize_bam_contig_depths on ${base_name}"
+ jgi_summarize_bam_contig_depths \
+    --percentIdentity 97 \
+    --minContigLength 1000 \
+    --minContigDepth 1.0  \
+    --referenceFasta "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
+    "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam \
+    --outputDepth "${bam_contig_depths_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}".depth.txt \
+    2>&1 |tee  "${metabat2_reports_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}"_jgi_summarize_bam_contig_depths_report.txt
+ gzip -9 --best "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam;
+done
 #  docker run --workdir $(pwd) --volume $(pwd):$(pwd) metabat:latest jgi_summarize_bam_contig_depths \
 
 # runMetaBat.sh <options> assembly.fasta sample1.bam [sample2.bam ...]
 # runMetaBat.sh ../megahit_output/2D10_trim_decontam.megahit_asm/2D10_trim_decontam_final.contigs.fa     \
 #     ../megahit_output/alignedreads/2D10_aln_either_read_mapped_sorted.bam
 
-# 6.3 MetaBAT2
+# 1.2 MetaBAT2
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 echo "Running MetaBAT2"
@@ -105,9 +108,5 @@ echo "${intermediate_date_time}"
 
 #  docker run --workdir $(pwd) --volume $(pwd):$(pwd) metabat:latest metabat2 \
 
-# metabat2 -i "${megahit_output_dir}"/demo_assembly.fa.gz \
-#     -a "${bam_contig_depths_dir}"/demo.depth.txt  \
-#     -o "${metabat2_output_dir}"/"${date_time}"_demo/"${date_time}"_demo_bin \
-#     -v
 # -o means the output directory and start of the file name (here, bin.1.fa, bin.2.fa, etc)
 
