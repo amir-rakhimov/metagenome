@@ -1,3 +1,5 @@
+# Create a table that shows percentage of unclassified reads per sample
+# The number of unclassified reads was taken from the job report.
 library(tidyverse)
 date_time<-"20240409_17_32_40"
 kraken2.results<-read.table(file.path("./output/kraken2_pipeline",
