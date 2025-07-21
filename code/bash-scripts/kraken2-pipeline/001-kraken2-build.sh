@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+######
+# This script performs the following:
+# 1. Downloads NCBI taxonomy for the reference database. 
+
+# 2. Downloads databases for taxonomic analysis. The databases are `bacteria`,
+# `archaea`, `viral`, `human`, `UniVec_Core`, `fungi`, `plant`, `protozoa`,
+# `plasmid`. 
+
+# The output database is located in the `data/kraken2_db/k2_large_2025` directory
+
+# 3. Adds the naked mole-rat reference genome to the database. The reference 
+# genome path is `~/common_data/reference_genomes/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna`.
+
+# 4. Builds the Kraken2 reference database in the same directory as the previous output
+######
 date_var=$(date -I|sed 's/-//g')
 # kmer length for kraken2-build and braken-build
 kmer_len=35 

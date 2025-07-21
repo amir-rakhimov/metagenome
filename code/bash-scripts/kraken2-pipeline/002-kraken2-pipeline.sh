@@ -4,6 +4,104 @@ shopt -s nullglob
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
 
+######
+# This script performs the following:
+
+# 1. Classifies decontaminated samples using Kraken2.
+
+# Input: decontaminated paired-end FASTQ files in the `data/bowtie2_decontam_fastq` directory,
+# Kraken2 reference database path.
+
+# Output: 
+# - Kraken2 output files (.kraken2), without minimizers, saved in the 
+# `output/kraken2_pipeline/kraken2_output` directory. However,
+# it's possible to add minimizers if needed. The output file name format is 
+# `${date_time}_${sample_name}_no_minimizer_data.kraken2`. Gzip-compressed.
+# - Kraken2 reports (.k2report) with taxonomic classification saved in the 
+# `output/kraken2_pipeline/kraken2_reports` directory. The output file name format is 
+# `${date_time}_${sample_name}_no_minimizer_data.k2report`. Gzip-compressed.
+# - FASTQ files with classified sequences (read 1 and read 2 are in separate files) saved in
+# the `output/kraken2_pipeline/kraken2_classified_reads` directory.
+# The output file name format is `${date_time}_${sample_name}_classified__1.fq` for read 1
+# and  `${date_time}_${sample_name}_classified__2.fq` for read 2.
+# - Stdout file saved in the general directory (`~/projects/metagenome`) as 
+# `${date_time}_kraken2_stdout_no_minimizer_data.txt`.
+
+# 2. Runs Bracken for abundance estimation of microbiome samples
+
+# Input: Kraken2 reports in the `output/kraken2_pipeline/kraken2_reports` directory, 
+# Kraken2 reference database path.
+
+# Output: 
+# - Bracken output files (.bracken) saved in the 
+# `output/kraken2_pipeline/bracken_output` directory. The output file name format is
+# `${date_time}_${sample_name}_no_minimizer_data.bracken`.
+# - Bracken reports (.breport) saved in the 
+# `output/kraken2_pipeline/bracken_reports` directory. The output file name format is
+# `${date_time}_${sample_name}_no_minimizer_data.breport`.
+# - Stdout file saved in the general directory (`~/projects/metagenome`) as
+# `${date_time}_bracken_stdout_no_minimizer_data.txt`.
+
+# 3. Generates TXT files for Krona plots
+
+# Input: Bracken reports in the `output/kraken2_pipeline/bracken_reports` directory.
+
+# Output: TXT files for Krona generated from Bracken reports (one TXT file per sample) 
+# and saved in the `output/kraken2_pipeline/bracken_krona_txt` directory.
+
+# 4. Generates Krona plots
+
+# Input: TXT files for Krona saved in `output/kraken2_pipeline/bracken_krona_txt` directory.
+
+# Output: HTML files with Krona plots saved in `output/kraken2_pipeline/krona_html` directory.
+
+# 5. Extract reads that were mapped to selected taxa: Cryptomeria japonica (taxonomy id 3369),
+# Glycine soja (taxid 3848), Ipomoea triloba (taxid 35885), and Macadamia integrifolia (taxid 60698).
+
+# Input: FASTQ files with classified sequences (read 1 and read 2 are in separate files) in 
+# the `output/kraken2_pipeline/kraken2_classified_reads` directory.
+
+# Output: FASTA files with reads that were mapped to selected taxa, saved in the 
+# `output/kraken2_pipeline/kraken2_filtered_reads` directory. The output file name format is
+# `"${date_time}"_"${sample_name}"_taxid_"${taxid}"_R"${readnum}".fasta` where
+# `taxid` is the number corresponding to NCBI taxonomic ID of a selected species, and 
+# `readnum` is read file number (`1` or `2`) where the sequence was found.
+
+# 6. Classifies reads from selected taxa with nucleotide BLAST.
+
+# Input: FASTA files with reads mapped to selected taxa in the 
+# # TODO `output/kraken2_pipeline/kraken2_filtered_reads` directory, reference database for BLAST saved as
+# `~/common_data/blast_databases/16S_ribosomal_RNA`.
+
+# Output: TXT files with taxonomic classification from BLAST on selected species, saved
+# in the `output/kraken2_pipeline/blast_output` directory. The output file name format is
+# `"${date_time}"_"${sample_name}"_R"${readnum}"_blast_out.txt`
+
+######
+
+
+# Input
+# FASTQ files with decontaminated reads (either from pipeline #1 or supplied by user). 
+# Please adjust Kraken2 and Bracken parameters like kmer length, minimizer 
+# length, etc. according to your needs
+
+# Output
+# * Kraken2 output files (.kraken2) without minimizers. However, it's possible 
+# to add minimizers if needed
+# * Kraken2 reports (.k2report) with taxonomic classification
+# * FASTQ files with classified sequences (read 1 and read 2 are in 
+# separate files), gzip-compressed
+# * Bracken output files (.bracken)
+# * Bracken reports (.breport)
+# * TXT files for Krona generated from Bracken reports (one TXT file per sample)
+# * HTML files with Krona plots generated from TXT files (one HTML file per sample)
+# * FASTA files with reads that were mapped to Cryptomeria japonica (taxonomy id 3369),
+# Glycine soja (taxid 3848), Ipomoea triloba (taxid 35885), and Macadamia 
+# integrifolia (taxid 60698).
+# * TXT files with taxonomic classification from BLAST on selected species 
+# (using FASTA files)
+
+
 ### Get the current date in yyyy-mm-dd format with date -I
 ### Remove the hyphen with sed (use global search with /g to remove all hyphens)
 ### Store as a variable date_var
@@ -229,19 +327,14 @@ done
 ### -o
 
 # Tidy up the bracken report
-for FILE in ${bracken_krona_txt_dir}/${date_time}_*_no_minimizer_data.b.krona.txt
+for FILE in "${bracken_krona_txt_dir}"/"${date_time}"_*_trim_no_minimizer_data.b.krona.txt
  do
  # Extract the sample name
- SAMPLE=$(basename "$FILE" | sed "s/\.b.krona.txt//" | sed "s/${date_time}_//" | sed "s/_no_minimizer_data//")
- base_name=$(basename "$SAMPLE" )
- # Define input and output file names
- input_file="${bracken_krona_txt_dir}/${date_time}_${base_name}_no_minimizer_data.b.krona.txt"
- output_file="${bracken_krona_txt_dir}/${date_time}_${base_name}_no_minimizer_data_table.tsv"
-
+ SAMPLE=$(basename "${FILE}" | sed "s/\.b.krona.txt//" | sed "s/${date_time}_//" | sed "s/_trim_no_minimizer_data//")
  # Process the file using awk
- awk -F'\t' '
-	BEGIN {
-		print "Abundance\tKingdom\tPhylum\tClass\tOrder\tFamily\tGenus\tSpecies"
+ awk -v sample_name="${SAMPLE}" '
+	BEGIN {FS=OFS="\t";
+		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"
 	}
 	{
 		abundance = $1
@@ -263,11 +356,16 @@ for FILE in ${bracken_krona_txt_dir}/${date_time}_*_no_minimizer_data.b.krona.tx
 			else if ($i ~ /^s__/) species = $i
 		}
 
-		print abundance "\t" kingdom "\t" phylum "\t" class "\t" order "\t" family "\t" genus "\t" species
+		print sample_name, abundance,  kingdom, phylum, class, order, family, genus, species
 	}
-' "${input_file}" > "${output_file}"
+ ' "${bracken_krona_txt_dir}"/"${date_time}"_"${SAMPLE}"_trim_no_minimizer_data.b.krona.txt > \
+	"${bracken_krona_txt_dir}"/"${date_time}"_"${SAMPLE}"_trim_no_minimizer_data.tsv
 done
 
+awk 'FNR>1' "${bracken_krona_txt_dir}"/"${date_time}"_*_trim_no_minimizer_data.tsv | \
+	awk 'BEGIN {FS=OFS="\t";
+		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"}
+		{print}' > output/rtables/"${date_time}"_combined_report.tsv
 
 # Analyse specific sequences
 # Cryptomeria japonica: taxid 3369
