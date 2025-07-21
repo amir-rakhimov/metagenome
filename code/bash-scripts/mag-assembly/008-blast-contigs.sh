@@ -13,6 +13,8 @@ shopt -s nullglob
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
 
+# This script uses BLASTN on SILVA SSU Ref NR99 database on contigs from MEGAHIT
+# for a broad taxonomic classification.
 date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
@@ -37,7 +39,7 @@ mkdir -p data/blastdbs
 # 0. Show the current time for logging
 echo "${start_date_time}"
 
-# Get the SILVA SSU Ref NR99 database
+# 1. Get the SILVA SSU Ref NR99 database
 # echo "Downloading SILVA SSU Ref NR99 database"
 # wget https://www.arb-silva.de/fileadmin/silva_databases/release_138_2/Exports/SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz \
 #  -O "${silva_db_dir}"/SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz
@@ -45,7 +47,7 @@ echo "${start_date_time}"
 # intermediate_date_time=$(date +"%F %H:%M:%S")
 # echo "${intermediate_date_time}"
 
-# Build a reference database
+# 1.1 Build a reference database
 # echo "Building a BLAST reference database"
 # makeblastdb -in "${silva_db_dir}"/SILVA_138.2_SSURef_NR99_tax_silva.fasta \
 #  -parse_seqids \
@@ -54,7 +56,7 @@ echo "${start_date_time}"
 #  -title "SILVA 138_2 SSURef NR99 db" \
 #  -dbtype nucl
 
-# Run BLASTN for a broad taxonomic screening
+# 2. Run BLASTN for a broad taxonomic screening
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 mkdir -p "${blastn_output_dir}"/"${blastn_date_time}"
@@ -92,10 +94,10 @@ echo "${intermediate_date_time}"
 # sframe means Subject frame
 
 
-# Extract top BLAST hits with sequence identity > 90% and alignment length > 500 bp
-# 1. Filter based on identity and length
-# 2. Sort by query ID and descending bitscore
-# 3. Pick the top hit per query
+# 2.1 Extract top BLAST hits with sequence identity > 90% and alignment length > 500 bp
+# 1) Filter based on identity and length
+# 2) Sort by query ID and descending bitscore
+# 3) Pick the top hit per query
 # Then, extract qseqid, sseqid, pident, length, bitscore
 for FILE in "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_*_SILVA_results.tsv
 do
@@ -133,7 +135,7 @@ done
 # Substitute the space between ID and taxonomy with tab
 grep "^>" "${silva_db_dir}"/SILVA_138.2_SSURef_NR99_tax_silva.fasta |sed -E 's/^>(\S+)\s+(.*)/\1\t\2/'  > "${silva_db_dir}"/SILVA_138.2_headers.txt
 
-# Match BLAST results with SILVA headers
+# 2.2 Match BLAST results with SILVA headers
 # Final table: 
 # contig_id | silva_ref_id | perc_identity | alignment_length | bitscore | taxonomy 
 # qseqid, sseqid, pident, length, bitscore
@@ -146,46 +148,16 @@ do
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
  echo "Matching BLASTN results (sseqid) with SILVA database taxonomy on ${base_name}"
- awk -F'\t' -v OFS='\t' ' 
+ awk -F'\t' -v OFS='\t' -v sample_name="${base_name}" ' 
     NR==FNR { silva[$1] = substr($0, index($0, $2)); next }
-    $2 in silva { print $0 "\t" silva[$2] }
+    $2 in silva { print sample_name "\t" $0 "\t" silva[$2] }
     ' "${silva_db_dir}"/SILVA_138.2_headers.txt \
         "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_results_for_taxonomy.tsv > \
-        "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_blast_with_taxonomy.tsv
-#  intermediate_date_time=$(date +"%F %H:%M:%S")
-#  echo "${intermediate_date_time}"
-#  echo "Extracting taxonomy for ${base_name}"
-#  awk -F'\t' -v OFS='\t' -v sample="${base_name}" '
-#    {
-#     split($6, tax, ";");
-#     print sample, $1, tax[1], tax[2], tax[3], tax[4], tax[5], tax[6], tax[7]
-#    }
-#    '  "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_blast_with_taxonomy.tsv > \
-#       "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_blast_taxonomy_split.tsv;
+        "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_blast_with_taxonomy.tsv;
 done
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
 
 # Merge all BLAST taxonomies
-conda activate qc-tools
-# cat "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_*_blast_taxonomy_split.tsv | \
-#   csvtk add-header -t -n sample,contig_id,Kingdom,Phylum,Class,Order,Family,Genus,Species > \
-#     "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blast_combined_taxonomies.tsv 
-    
-# TODO
-for FILE in "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_*_blast_with_taxonomy.tsv
-do
- base_name=$(basename "$FILE" )
- base_name=$(echo "${base_name}" | sed "s/_blast_with_taxonomy\.tsv//" |sed "s/${blastn_date_time}_blastn_//")
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- 
- awk -F'\t' -v OFS='\t' -v sample="${base_name}" '
-   {
-    print sample, $0
-   }
-   '  "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_blast_with_taxonomy.tsv > \
-      "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_"${base_name}"_output_with_sample.tsv;
-done
-cat "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_*_output_with_sample.tsv > \
+cat "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_*_blast_with_taxonomy.tsv > \
    "${blastn_output_dir}"/"${blastn_date_time}"/"${blastn_date_time}"_blastn_all_samples.tsv

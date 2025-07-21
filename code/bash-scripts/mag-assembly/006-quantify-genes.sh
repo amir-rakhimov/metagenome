@@ -17,7 +17,7 @@ start_date_time=$(date +"%F %H:%M:%S")
 megahit_date_time=20250303_17_54_26
 bbwrap_date_time=20250326_08_18_26
 picard_date_time=20250603_18_19_44
-htseq_count_date_time="${date_time}"
+htseq_count_date_time=20250710_19_36_58
 # prokka_date_time=20250515_11_29_31
 prokka_date_time=20250626_22_11_43
 mmseqs_easy_cluster_date_time=20250626_22_11_43
@@ -166,6 +166,33 @@ do
 done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
+
+# Combine GTF data into a TSV file: CDS, rRNA, tRNA, partial genes, pseudogenes, etc.
+for FILE in "${prokka_gtf_dir}"/"${prokka_date_time}"_*_pred_prokka.map.gtf 
+do
+ SAMPLE=$(basename "${FILE}" | sed "s/_pred_prokka\.map\.gtf//" |sed "s/${prokka_date_time}_//")
+ # Select contig ID ($1), gene start($4) and gene end ($5), and gene ID ($10)
+ # But gene ID column also has gene type (Note=...)
+ cut -f1,4,5,10 "${FILE}" |sed 's/ID=//g' | \
+   awk -F'\t' 'BEGIN{OFS="\t"} {
+         split($4, arr, /;Note=/)
+         if (length(arr) == 2) {
+            $4 = arr[1]
+            $5 = arr[2]
+         }
+      print
+   }
+   '  | gawk -v sample_name="${SAMPLE}"  '{print sample_name,$1,$4,$3-$2+1,$5}'| tr ' ' '\t' > \
+ "${prokka_gtf_dir}"/"${prokka_date_time}"_"${SAMPLE}"_contig_gene_mapping.tsv;
+done
+
+# All mappings (including redundancies): 3847253 entries, but only 3771950 CDS
+cat "${prokka_gtf_dir}"/"${prokka_date_time}"_*_contig_gene_mapping.tsv > \
+   "${prokka_gtf_dir}"/"${prokka_date_time}"_all_contig_gene_maps.tsv
+# 3847253 entries with counts
+cat "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_*_prokka_filtered.count > \
+   "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_all_prokka_counts.tsv
+
 
 # 4. Normalizing to Transcripts Per Million (TPM)
 # The gene lengths we can get from the GTF file that you used with htseq:

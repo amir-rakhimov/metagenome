@@ -1,4 +1,91 @@
 #!/usr/bin/env bash
+######
+# This script performs the following:
+# 1. Renames FASTQ files to make them shorter because the sequencing company gave the files long 
+# names
+# 2. Downloads reference genomes for decontamination. We are using genomes of
+# naked mole-rat (Heter_glaber.v1.7_hic_pac), Damaraland mole-rat (DMR_v1.0_HiC), human (T2T),
+# mouse (GRCm39), and human decoy genome (as specified in 
+# https://www.cureffi.org/2013/02/01/the-decoy-genome/). 
+
+# The reference genomes are merged into one FASTA file and saved in 
+# the `~/common_data/reference_genomes` directory 
+# as `all_hosts_reference.fasta` file. BowTie2 also builds an index using `all_hosts_reference.fasta` 
+# and saves it in the `~/common_data/bowtie2_indices` directory.
+
+# 3. Runs FASTQC and MultiQC on raw reads.
+
+# Input: FASTQ files in the `data/fastq/yasuda-fastq` directory.
+
+# Output: reports saved in the `output/qc_pipeline/fastqc_output`
+# and `output/qc_pipeline/multiqc_output` directories.
+# 4. Trims raw reads with Cutadapt. The parameters are `--max-n` = 0.1 (do not allow > 10% Ns),
+# `-q` = 5 (remove bases with basequal < 5), `-O` = 5 (Require MINLENGTH overlap between
+# read and adapter for an adapter to be found), --discard-trimmed (discard reads in
+# which an adapter was found), `--minimum-length` = 75 (minimum length after trimming). 
+
+# Input: FASTQ files in the `data/fastq/yasuda-fastq` directory.
+
+# Output: FASTQ files saved in the `output/qc_pipeline/cutadapt_output` 
+# directory. The Cutadapt command also saves a report for each sample in the same directory.
+
+# 5. Aligns trimmed reads to the reference genomes with BowTie2.
+
+# Input: the BowTie2 index (`~/common_data/bowtie2_indices/all_hosts_reference`), trimmed
+# FASTQ files (`output/qc_pipeline/cutadapt_output`).
+
+# Output: SAM and BAM files with reads that are mapped and unmapped to reference genomes. The SAM
+# files for each sample are saved in the `output/bowtie2_pipeline/bowtie2_output_sam` directory as
+# `${sample_name}_trim_mapped_and_unmapped.sam`. For example, the SAM file for 2D10 sample would be 
+# `2D10_trim_mapped_and_unmapped.sam`. The BAM files are saved in the
+# `output/bowtie2_pipeline/bowtie2_output_bam` directory in the same format as SAM files.
+
+# 6. Filters out read pairs that did not map to reference genomes. These are reads free of 
+# contamination.
+
+# Input: BAM files with mapped and unmapped reads from the previous step
+# (`output/bowtie2_pipeline/bowtie2_output_bam`).
+
+# Output: BAM files where both reads did not map to reference genomes. They are saved in the
+# `output/bowtie2_pipeline/bowtie2_filtered_bam` directory and are named like 
+# `${sample_name}_bothReadsUnmapped.bam`.
+
+# 7. Sorts the BAM file by read name to have paired reads next to each other. Then, it splits
+# paired-end reads into separated fastq files: .._R1 .._R2. 
+
+# Input: BAM files where both reads did not map to reference genomes 
+# (`output/bowtie2_pipeline/bowtie2_filtered_bam/${sample_name}_bothReadsUnmapped.bam`).
+
+# Output: Sorted BAM file (`${base_name}_bothReadsUnmapped_sorted.bam`) in the 
+# `output/bowtie2_pipeline/bowtie2_sorted_bam` directory; decontaminated reads 
+# (`${sample_name}_decontam_R1.fastq.gz` and `${sample_name}_decontam_R2.fastq.gz`) in the 
+# `data/bowtie2_decontam_fastq` directory.
+
+# 8. Runs FastQC and MultiQC on decontaminated data as a final check.
+
+# Input: decontaminated reads in the `data/bowtie2_decontam_fastq` directory. 
+
+# Output reports are saved in the 
+# `output/qc_pipeline/fastqc_output` and `output/qc_pipeline/multiqc_output` directories.
+######
+
+# Main Input:
+# FASTQ files (gzip-compressed) with raw paired-end demultiplexed 
+# reads (with or without adapters). If adapters are not removed, please specify
+# adapter sequences in the `bash-scripts/qc-pipeline/001-qc-commands-with-bowtie2.sh` script.
+
+# Final output: 
+# * Quality check reports from FASTQC and MultiQC on raw data
+# * FASTQ files with trimmed reads (gzip-compressed)
+# * SAM and BAM files with reads that are mapped and unmapped to reference genomes 
+# * BAM file with read pairs that are unmapped (both R1 and R2 are unmapped) to the reference
+# genomes
+# * Sorted BAM file with read pairs that are unmapped (sorted by read name)
+# * Final FASTQ files with decontaminated reads: only read pairs that were unmapped to 
+# reference genomes are retained in the final files
+# * Final quality check reports from FASTQC and MultiQC
+######
+
 nthreads=12
 mem_req=8G
 mem_req_sort=4G
