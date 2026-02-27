@@ -3,8 +3,8 @@ library(phyloseq)
 library(Maaslin2)
 library(vegan)
 # phyloseq.date_time<-"20240619_14_11_06"
-pipeline.name<-"kraken2"
-ps.q.df.preprocessed.date_time<-"20241004_15_12_22"
+ps.q.df.preprocessed.date_time<-"20241004_15_12_22"# tsv
+ps.q.df.preprocessed.date_time<-"20260227_17_58_35"# rds
 
 rdafiles.directory<-"./output/rdafiles"
 rtables.directory<-"./output/rtables"
@@ -12,10 +12,8 @@ metadata.directory<-"../amplicon_nmr/output/rdafiles"
 # choose what to compare
 comparison<-"age"
 # comparison<-"sex"
-# comparison<-"strain"
 # choose the host of interest
 host<-"NMR"
-# host<-"mice"
 ref.level<-"agegroup0_10" # choose the reference level
 # ref.level<-"F"
 # this is for file names
@@ -32,9 +30,15 @@ filter.status<-"nonfiltered"
 ps.q.df.preprocessed<-read.table(
   file.path(rtables.directory,paste0(
     paste(ps.q.df.preprocessed.date_time,
-          pipeline.name,"ps.q.df.rare-nonfiltered",agglom.rank,
+          "kraken2","ps.q.df.rare-nonfiltered",agglom.rank,
           paste(host,collapse = '-'),sep = "-"),".tsv")),
   header = T,sep = "\t")
+
+ps.q.df.preprocessed<-
+  readRDS(file = file.path(rdafiles.directory,
+                           paste(ps.q.df.preprocessed.date_time,
+                                 "kraken2","ps.q.df.rare-nonfiltered",agglom.rank,
+                                 "NMR.rds",sep = "-")) )
 
 ps.q.df.preprocessed$Sample<-as.factor(ps.q.df.preprocessed$Sample)
 ps.q.df.preprocessed$class<-as.factor(ps.q.df.preprocessed$class)
@@ -58,18 +62,10 @@ if (comparison=="age"){
   
 }else if (comparison=="sex"){
   pretty.level.names<-
-    c("F" = "Females",
-      "M" = "Males")
+    c("female" = "Females",
+      "male" = "Males")
   custom.levels<-names(pretty.level.names)
   
-}else if(comparison=="strain"){
-  pretty.level.names<-
-    c("B6mouse" = "B6 mouse",
-      "MSMmouse" = "MSM/Ms mouse",
-      "FVBNmouse" = "FVB/N mouse"
-    )
-  custom.levels<-intersect(names(pretty.level.names),custom.md$class)
-  pretty.level.names<-pretty.level.names[which(names(pretty.level.names)%in%custom.levels)]
 }
 # Preparing the dataset ####
 # filter the dataset
@@ -117,7 +113,7 @@ maaslin.fit_data =
            transform = "LOG",
            random_effects = c("relation"), 
            standardize = FALSE,
-           output = file.path("./output/maaslin2",paste0(pipeline.name,"-output"),
+           output = file.path("./output/maaslin2",paste0("kraken2","-output"),
                               rare.status,paste(
                                 paste(format(Sys.time(),format="%Y%m%d"),
                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
@@ -128,46 +124,33 @@ maaslin.fit_data =
            reference = maaslin.reference,
            max_significance = 0.05)
 
+saveRDS(maaslin.fit_data,
+        file = file.path("output/rdafiles",
+                         paste(
+                           paste(format(Sys.time(),format="%Y%m%d"),
+                                 format(Sys.time(),format = "%H_%M_%S"),
+                                 sep = "_"),
+                           "kraken2-maaslin.fit_data.age-NMR-Species-age-ref",
+                           ref.level,".rds",sep = "-")))
+
 save.image(file.path("./output/rdafiles",paste(
   paste(format(Sys.time(),format="%Y%m%d"),
         format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-  "maaslin2",pipeline.name,rare.status,filter.status,host,agglom.rank,
+  "maaslin2","kraken2",rare.status,filter.status,host,agglom.rank,
   comparison,paste(custom.levels,collapse = '-'),"ref",
   ref.level,"workspace.RData",sep="-")))
-q()
 
 # Load output for plotting ######
-library(tidyverse)
-maaslin.date_time<-"20240621_18_31_55"
-if(pipeline.name=="kraken2"){
-  ps.q.agg.date_time<-"20241003_13_52_43"
-}else if (pipeline.name=="singlem"){
-  ps.q.agg.date_time<-"20240929_23_33_37"
-}
-host<-"NMR"
-comparison<-"age"
-ref.level<-"agegroup0_10" # choose the reference level
-# this is for file names
-if(host=="NMR"){
-  host.labels<-c("NMR" = "*Heterocephalus glaber*")
-}else{
-  host.labels<-
-    c("B6mouse" = "B6 mouse",
-      "MSMmouse" = "MSM/Ms mouse",
-      "FVBNmouse" = "FVB/N mouse")
-}
-custom.levels<-c("agegroup10_16","agegroup0_10")
+# maaslin.date_time<-"20240621_18_31_55"
+ps.q.agg.date_time<-"20241003_13_52_43"
 metric.labs<-c("agegroup0_10"="Young naked mole-rats",
                "agegroup10_16"="Old naked mole-rats")
-agglom.rank<-"Species"
-rare.status<-"rare"
-filter.status<-"nonfiltered"
-
-load(file.path("./output/rdafiles",paste(
-  maaslin.date_time,
-  "maaslin2-kraken2",rare.status,filter.status,host,agglom.rank,
-  comparison,paste(sort(custom.levels),collapse = '-'),"ref",
-  ref.level,"workspace.RData",sep="-")))
+# 
+# load(file.path("./output/rdafiles",paste(
+#   maaslin.date_time,
+#   "maaslin2-kraken2",rare.status,filter.status,host,agglom.rank,
+#   comparison,paste(sort(custom.levels),collapse = '-'),"ref",
+#   ref.level,"workspace.RData",sep="-")))
 ps.q.agg<-readRDS(file.path(rdafiles.directory,
                             paste(ps.q.agg.date_time,"phyloseq-kraken2",
                                   agglom.rank,"table.rds",sep = "-")))
@@ -180,8 +163,6 @@ if(min(maaslin.fit_data$results$qval)<0.05){
     arrange(qval)%>%
     head(n = 10) # if no significant results found
 }
-
-
 
 foo<-ps.q.agg
 foo$maaslin<-foo$Species
@@ -196,102 +177,6 @@ maaslin.signif.features<-subset(maaslin.signif.features, select=-Species)
 
 table(maaslin.signif.features$feature%in%ps.q.agg$Species)
 
-# Calculate SD and mean if some samples don't have a certain taxon ####
-sample.vector<-rep(0,length.out=nrow(custom.md))
-names(sample.vector)<-custom.md$Sample
-abundance.df<-ps.q.agg%>%
-  ungroup()%>%
-  filter(Species=="Staphylococcus_shinii")%>%
-  distinct(Sample,.keep_all = T)%>%
-  select(Sample,RelativeAbundance)
-abundance.vector<-abundance.df$RelativeAbundance
-names(abundance.vector)<-abundance.df$Sample
-sample.vector
-new.sample.vector<-ifelse(names(sample.vector)%in%names(abundance.vector),abundance.vector,0)
-names(new.sample.vector)<-names(sample.vector)
-new.sample.vector
-mean(new.sample.vector)
-sd(new.sample.vector)
-
-# I want to add zero rows ###
-ps.q.agg.relab<-ps.q.agg%>%ungroup()
-for (sample in unique(ps.q.agg.relab$Sample)) {
-  missing_species <- setdiff(maaslin.signif.features$feature, ps.q.agg.relab$Species[ps.q.agg.relab$Sample == sample])
-  if (length(missing_species) > 0) {
-    for (species in missing_species) {
-      new_row <- tibble(Sample = sample, 
-                        Species = species, 
-                        Abundance = 0,
-                        RelativeAbundance=0)
-      ps.q.agg.relab <- ps.q.agg.relab %>% add_row(.before = nrow(df), !!!new_row)
-    }
-  }
-}
-# To fill the NA values in the empty columns based on non-empty rows in the Sample column 
-ps.q.agg.relab<- ps.q.agg.relab %>%
-  group_by(Sample) %>%
-  left_join(unique(custom.md),by="Sample")%>%
-  fill(age, .direction = "down")%>%
-  fill(agegroup, .direction = "down")#%>%
-  # fill(old_agegroup, .direction = "down")
-
-
-# for (i in seq(nrow(maaslin.signif.features))){
-#   pretty.feature_name<-gsub("_"," ",maaslin.signif.features$feature[i])
-#   pretty.feature_name<-paste0("<i>",pretty.feature_name,"</i>")
-#   taxon.plot<-ps.q.agg.relab%>%
-#     # left_join(custom.md,by="Sample")%>%
-#     group_by(Sample)%>%
-#     filter(Species==maaslin.signif.features$feature[i])%>%
-#     # bind_rows(foo)%>%
-#     ggplot(aes(x=Sample,y=RelativeAbundance))+
-#     geom_bar(stat="identity")+
-#     facet_grid(~factor(agegroup,
-#                        levels=custom.levels),
-#                scales = "free_x",
-#                labeller = as_labeller(metric.labs))+
-#     theme_bw()+
-#     ggtitle(paste(pretty.feature_name,"relative abundance"))+
-#     labs(y="Relative abundance (%)")+
-#     theme(axis.line = element_blank(), 
-#           strip.text.x = ggtext::element_markdown(size = 20),# the name of 
-#           # each facet will be recognised as a markdown object, so we can
-#           # add line breaks (cause host names are too long)
-#           axis.text.x = element_text(size=30),# rotate 
-#           # the x-axis labels by 45 degrees and shift to the right
-#           axis.text.y = element_text(size=30), # size of y axis ticks
-#           axis.title = element_text(size = 30), # size of axis names
-#           plot.title = ggtext::element_markdown(size = 35), # the plot 
-#           # title will be recognised as a markdown object, so we can
-#           # add line breaks (cause host names are too long)
-#           plot.caption = element_text(size=23),# size of plot caption
-#           legend.text = element_text(size = 20),# size of legend text
-#           legend.title = element_text(size = 25), # size of legend title
-#           legend.position = "none")
-#   for(image.format in c("png","tiff")){
-#     ggsave(paste0("./images/barplots/",
-#                   paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                               format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                         "barplot","NMR",maaslin.signif.features$feature[i],
-#                         agglom.rank,sep = "-"),".",image.format),
-#            plot=taxon.plot,
-#            width = 6000,height = 3000,
-#            units = "px",dpi=300,device = image.format)
-#   }
-# }
-
-# Check the average relative abundance of significant taxa ####
-# Separate by agegroup
-ps.q.agg%>%
-  left_join(custom.md)%>%
-  group_by(agegroup)%>% # group by class (animal host),
-  mutate(TotalAgegroup=sum(Abundance))%>%
-  group_by_at(c("agegroup",agglom.rank))%>%
-  mutate(TotalAgglomRankAge=sum(Abundance))%>%
-  mutate(MeanRelativeAbundanceAgegroup=TotalAgglomRankAge/TotalAgegroup*100)%>%
-  filter(Species%in%maaslin.signif.features$feature)%>%
-  select(MeanRelativeAbundance,MeanRelativeAbundanceAgegroup)
-
 
 # Plot differentially abundant species ####
 gg.labs.name<-"Age group"
@@ -300,18 +185,17 @@ sample.levels<-custom.md%>%
   filter(Sample%in%ps.q.agg$Sample)%>%
   select(Sample,age)%>%
   arrange(age)%>%
-  distinct()
-sample.levels$Sample<-factor(sample.levels$Sample,
-                             levels=sample.levels$Sample)
+  distinct()%>%
+  mutate(Sample=factor(Sample,
+                       levels=Sample))
 
 diff.abund.plot<-ps.q.agg.relab%>%
+  mutate(Sample=factor(Sample,levels=sample.levels$Sample))%>%
   filter(Species%in%maaslin.signif.features$feature)%>%
   left_join(maaslin.signif.features[,c("feature","qval")],
             by=c("Species"="feature"))%>%
   mutate(Species=gsub("_"," ",Species),
          Species=paste0("<i>",Species,"</i>"," (p = ",round(qval,digits = 3),")"))%>%
-  mutate(Sample=factor(Sample,levels=sample.levels$Sample))%>%
-  group_by(class,Species)%>%
   left_join(custom.md[,c("Sample","agegroup","age")])%>%
   ggplot(aes(x=Sample,
              y=RelativeAbundance,
@@ -329,7 +213,6 @@ diff.abund.plot<-ps.q.agg.relab%>%
                      labels=unname(pretty.level.names))+
   scale_x_discrete(labels=pretty.level.names,
                    limits=sample.levels$Sample)+ 
-  scale_fill_manual(labels=pretty.level.names)+
   scale_fill_viridis_d(option = "C")+
   # ggtitle(paste0("Relative abundances of differentially abundant species in different naked mole-rat age groups"))+
   theme(
@@ -346,7 +229,9 @@ diff.abund.plot<-ps.q.agg.relab%>%
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank())
 
-
+#+ fig.width=7, fig.height=4,
+print(diff.abund.plot +
+        ggtitle(paste0("Relative abundances of differentially abundant species in different naked mole-rat age groups")))
 for (image.format in c("png","tiff")){
   if(nrow(maaslin.signif.features)==1){
     # diff.abund.plot<-diff.abund.plot+
