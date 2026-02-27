@@ -20,12 +20,6 @@ if(pipeline.name=="kraken2"){
   ps.q.agg.genus.date_time<-"20241003_13_56_28"
   ps.q.agg.family.date_time<-"20241003_13_57_30"
   ps.q.agg.phylum.date_time<-"20241003_13_57_59"
-}else if (pipeline.name=="singlem"){
-  ps.q.agg.date_time<-"20240929_23_33_37"
-  ps.q.agg.genus.date_time<-"20240929_23_33_59"
-  ps.q.agg.family.date_time<-"20240929_23_34_25"
-  ps.q.agg.phylum.date_time<-"20240929_23_34_50"
-  ps.q.agg.kraken.date_time<-"20241003_13_52_43"
 }
 
 ps.q.agg<-readRDS(file=file.path(
@@ -46,9 +40,10 @@ ps.q.agg.phylum<-readRDS(file=file.path(
   paste(ps.q.agg.phylum.date_time,"phyloseq",pipeline.name,"Phylum",
         "table.rds",sep = "-")))
 # Import metadata
-custom.md<-readRDS("../amplicon_nmr/output/rdafiles/use/custom.md.ages.rds")
+custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.ages.rds")
 custom.md<-custom.md%>%
-  filter(Sample%in%ps.q.agg$Species)
+  filter(Sample%in%ps.q.agg$Sample, 
+         sequencing_type =="Naked mole-rat whole metagenome sequencing")
 
 sample.levels<-custom.md%>%
   ungroup()%>%
@@ -65,6 +60,37 @@ n.species.per.host<-get_n_uniq_taxa_per_host(ps.q.agg,"Species")
 n.phylum.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.phylum,"Phylum")
 n.family.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.family,"Family")
 n.genus.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.genus,"Genus")
+
+
+ps.q.agg%>%
+  group_by(Sample)%>%
+  summarise(library_size=sum(Abundance))%>%
+  distinct(Sample,.keep_all = TRUE)%>%
+  summarise(n_sample=n_distinct(Sample),
+            mean_library=mean(library_size),
+            sd_library=sd(library_size))
+
+ps.q.agg%>%
+  summarise(total_reads=sum(Abundance),
+            n_species=n_distinct(Species),
+            n_genera=n_distinct(Genus),
+            n_families=n_distinct(Family),
+            n_phyla=n_distinct(Phylum))
+
+## For each sample
+n.taxa.per_sample<-ps.q.agg%>%
+  group_by(Sample)%>%
+  summarise(n_species=n_distinct(Species),
+            n_genera=n_distinct(Genus),
+            n_families=n_distinct(Family),
+            n_phyla=n_distinct(Phylum))
+write.table(n.taxa.per_sample,
+            file=file.path(rtables.directory,
+                           paste(paste(format(Sys.time(),format="%Y%m%d"),
+                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                                 pipeline.name,"n_taxa-per-sample-table.tsv",sep="-")),
+            row.names = F,sep = "\t")
+
 
 ## Summary table ####
 # Number of samples per host, total reads per host, mean library size,
@@ -94,10 +120,6 @@ ps.q.agg.relab<-add_agegroup_to_tax_df(ps.q.agg.relab,"Species",custom.md)
 ps.q.agg.genus.relab<-add_agegroup_to_tax_df(ps.q.agg.genus.relab,"Genus",custom.md)
 ps.q.agg.family.relab<-add_agegroup_to_tax_df(ps.q.agg.family.relab,"Family",custom.md)
 
-if(pipeline.name=="singlem"){
-  ps.q.agg.kraken<-readRDS(file.path(rdafiles.directory,paste(ps.q.agg.kraken.date_time,"phyloseq-kraken2-Species-table.rds",sep="-")))
-  ps.q.agg.kraken.relab<-add_relab_to_tax_df(ps.q.agg.kraken,"Species")
-}
 ### Check how many taxa are unclassified in each NMR sample ####
 all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
 agglom.rank<-"Species"
@@ -111,72 +133,17 @@ unclassified.species.summary.stats.table<-get_unclassified_summary_stats(ps.q.ag
 #                                  pipeline.name,"unclassified-species-summary-table.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-if(pipeline.name=="singlem"){
-  unclassified.species.summary.stats.table.kraken<-get_unclassified_summary_stats(ps.q.agg.kraken.relab,"Species")
-  # Barplot that shows how many unique species were found in Kraken2 and SingleM, 
-  # and how many species were unclassified in SingleM.
-  unclassified.species.summary.stats.table%>%
-    rename("ClassifiedSpecies"=NumClassifiedSpecies,
-           "UnclassifiedSpecies"=NumUnclassifiedSpecies)%>%
-    left_join(unclassified.species.summary.stats.table.kraken)%>%
-    rename("Kraken2ClassifiedSpecies"=NumClassifiedSpecies)%>%
-    pivot_longer(c("ClassifiedSpecies","UnclassifiedSpecies","Kraken2ClassifiedSpecies"),
-                 names_to = "SpeciesType",
-                 values_to = "NumberSpecies")%>%
-    mutate(Pipeline=ifelse(SpeciesType=="Kraken2ClassifiedSpecies","Kraken2","SingleM"))%>%
-    relocate(SpeciesType,NumberSpecies,Pipeline)%>%
-    left_join(sample.levels)%>%
-    ggplot(aes(x=NewSample,y=NumberSpecies,fill=SpeciesType))+
-    geom_bar(stat = "identity")+
-    facet_grid(~Pipeline)+
-    coord_cartesian(expand=F)+
-    labs(x="",
-         y="Number of species")+
-    theme_bw()+
-    theme(plot.margin=unit(c(1,1,1,1.5), 'cm'),
-          axis.line = element_blank(), #TODO: what does it do?
-          strip.text.x = ggtext::element_markdown(size = 20),# the name of
-          # each facet will be recognised as a markdown object, so we can
-          # add line breaks (cause host names are too long)
-          panel.spacing = unit(0.8, "cm"), # increase distance between facets
-          axis.text.x = element_text(angle=45,size=20,hjust=1),# rotate
-          # the x-axis labels by 45 degrees and shift to the right
-          axis.text.y = element_text(size=20), # size of y axis ticks
-          axis.title = element_text(size = 20), # size of axis names
-          plot.title = element_text(size = 25), # size of plot title
-          plot.caption = element_text(size=23), # size of plot caption
-          legend.text = element_markdown(size = 20), # size of legend text
-          legend.title = element_text(size = 25), # size of legend title
-          legend.position = "right") # legend under the plot
-  
-  ggsave(filename=paste0("./images/barplots/",
-                         paste(format(Sys.time(),format="%Y%m%d"),
-                               format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                         "-singlem-vs-kraken2.png"),
-         plot = last_plot(),device = "png",width = 4800,height = 3000,
-         units = "px",
-         dpi=300)
-  
-}
 
 
 
-
-# Distinct species in kraken2 vs singlem
+# Distinct species in kraken2
 ps.q.agg%>%
   group_by(class)%>%
   filter(Abundance!=0)%>%
   distinct(Species)%>%
   summarise(Taxon_count=n())%>%
   arrange(-Taxon_count)
-if(pipeline.name=="singlem"){
-  ps.q.agg.kraken%>%
-  group_by(class)%>%
-  filter(Abundance!=0)%>%
-  distinct(Species)%>%
-  summarise(Taxon_count=n())%>%
-  arrange(-Taxon_count)
-}
+
 ### Check the number of distinct OTU/taxa ####
 ps.q.agg%>%
   group_by(class)%>%
@@ -192,16 +159,38 @@ ps.q.agg.genus%>%
   arrange(-Taxon_count)
 
 ### Most abundant phyla ####
-ps.q.agg.dominant.phyla<-get_dominant_taxa_in_host(tax.df=ps.q.agg.phylum,
-                                           tax.rank="Phylum",
-                                           host="NMR",
-                                           nonbacterial.table = F)
-# write.table(ps.q.agg.dominant.phyla,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  pipeline.name,"dominant-phyla.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+ps.q.agg.dominant.phyla.nmr<-ps.q.agg.phylum.relab%>%
+  group_by(class)%>%
+  distinct(class,Kingdom,Phylum, MeanRelativeAbundance,sdRelativeAbundance)%>%
+  group_by(class,Phylum)%>%
+  arrange(class,desc(MeanRelativeAbundance))%>%
+  ungroup()
+
+ps.q.agg.dominant.families.nmr<-ps.q.agg.family.relab%>%
+  group_by(class)%>%
+  distinct(class,Kingdom,Phylum,Family, MeanRelativeAbundance,sdRelativeAbundance)%>%
+  group_by(class,Phylum,Family)%>%
+  arrange(class,desc(MeanRelativeAbundance))%>%
+  ungroup()
+
+ps.q.agg.dominant.genera.nmr<-ps.q.agg.genus.relab%>%
+  group_by(class)%>%
+  distinct(class,Kingdom,Phylum,Family,Genus, MeanRelativeAbundance,sdRelativeAbundance)%>%
+  group_by(class,Phylum,Family,Genus)%>%
+  arrange(class,desc(MeanRelativeAbundance))%>%
+  ungroup()
+
+
+# ps.q.agg.dominant.phyla<-get_dominant_taxa_in_host(tax.df=ps.q.agg.phylum,
+#                                            tax.rank="Phylum",
+#                                            host="NMR",
+#                                            nonbacterial.table = F)
+write.table(ps.q.agg.dominant.phyla.nmr,
+            file=file.path(rtables.directory,
+                           paste("20241003_15_45_51",#paste(format(Sys.time(),format="%Y%m%d"),
+                                       # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                                 pipeline.name,"dominant-phyla.tsv",sep="-")),
+            row.names = F,sep = "\t")
 
 ### Most abundant non-bacterial phyla  ####
 ps.q.agg.dominant.phyla.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.phylum,
@@ -216,16 +205,16 @@ ps.q.agg.dominant.phyla.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.phylu
 #             row.names = F,sep = "\t")
 
 ### Most abundant families ####
-ps.q.agg.dominant.families<-get_dominant_taxa_in_host(tax.df=ps.q.agg.family,
-                                                      tax.rank ="Family",
-                                                      host="NMR",
-                                                      nonbacterial.table = F)
-# write.table(ps.q.agg.dominant.families,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  pipeline.name,"dominant-families.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+# ps.q.agg.dominant.families<-get_dominant_taxa_in_host(tax.df=ps.q.agg.family,
+#                                                       tax.rank ="Family",
+#                                                       host="NMR",
+#                                                       nonbacterial.table = F)
+write.table(ps.q.agg.dominant.families.nmr,
+            file=file.path(rtables.directory,
+                           paste("20241003_15_47_55",#paste(format(Sys.time(),format="%Y%m%d"),
+                           #             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                                 pipeline.name,"dominant-families.tsv",sep="-")),
+            row.names = F,sep = "\t")
 
 ### Most abundant non-bacterial families ####
 ps.q.agg.dominant.families.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.family,
@@ -238,17 +227,17 @@ ps.q.agg.dominant.families.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.fa
 #                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
 #                                  pipeline.name,"dominant-families-nonbact.tsv",sep="-")),
 #             row.names = F,sep = "\t")
-### Most abundant genera ####
-ps.q.agg.dominant.genera<-get_dominant_taxa_in_host(tax.df=ps.q.agg.genus,
-                                                    tax.rank="Genus",
-                                                    host="NMR",
-                                                    nonbacterial.table = F)
-# write.table(ps.q.agg.dominant.genera,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  pipeline.name,"dominant-genera.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+### Most abundant genera (**Supplementary table 2**) ####
+# ps.q.agg.dominant.genera<-get_dominant_taxa_in_host(tax.df=ps.q.agg.genus,
+#                                                     tax.rank="Genus",
+#                                                     host="NMR",
+#                                                     nonbacterial.table = F)
+write.table(ps.q.agg.dominant.genera.nmr,
+            file=file.path(rtables.directory,
+                           paste("20241003_15_48_15",#paste(format(Sys.time(),format="%Y%m%d"),
+                                       # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+                                 pipeline.name,"dominant-genera.tsv",sep="-")),
+            row.names = F,sep = "\t")
 
 ### Most abundant non-bacterial genera ####
 ps.q.agg.dominant.genera.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.genus,
@@ -262,7 +251,7 @@ ps.q.agg.dominant.genera.nonbact<-get_dominant_taxa_in_host(tax.df=ps.q.agg.genu
 #                                  pipeline.name,"dominant-genera-nonbact.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-### Most abundant species overall ####
+### Most abundant species overall (**Supplementary table 1**) ####
 ps.q.agg.dominant.species<-get_dominant_taxa_in_host(tax.df=ps.q.agg,
                                                      tax.rank="Species",
                                                      host="NMR",
@@ -363,7 +352,7 @@ treponema.nmr<-ps.q.agg.genus.relab%>%
   distinct()
 treponema.nmr.names<-ps.q.agg.relab%>%
   filter(Genus=="Treponema",class=="NMR")%>%
-  select(Species,MeanRelativeAbundance)%>%
+  select(Species,MeanRelativeAbundance, sdRelativeAbundance)%>%
   distinct()%>%
   arrange(-MeanRelativeAbundance)
 # write.table(treponema.nmr,
@@ -407,7 +396,6 @@ mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.family.relab%>%
 
 
 ## Setup plots ####
-library(Polychrome)
 library(ggtext)
 
 pretty.level.names<-names(table(custom.md$old_agegroup))
@@ -416,15 +404,6 @@ custom.levels<-names(pretty.level.names)
 gg.labs.name<-"Age group"
 gg.title.groups<-"age groups"
 
-
-set.seed(1)
-custom.fill<-createPalette(length(custom.levels),
-                           seedcolors = c("#EE2C2C","#5CACEE","#00CD66",
-                                          "#FF8C00","#BF3EFF", "#00FFFF",
-                                          "#FF6EB4","#00EE00","#EEC900",
-                                          "#FFA07A"))
-names(custom.fill)<-custom.levels
-swatch(custom.fill)
 all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
 
 ## Sulfur metabolising bacteria ####
@@ -450,38 +429,76 @@ sulfur.bact.nmr<-
 #                                  pipeline.name,"sulfur.bact.nmr-nmr-table.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-### Plot sulfur metabolising bacteria ####
+### Plot sulfur metabolising bacteria (**Supplementary figure S4**) ####
 # Add zero rows
 # ps.q.agg.relab<-ps.q.agg.relab%>%ungroup()
 ps.q.agg.relab<-add_zero_rows(unique(sulfur.bact.nmr$Species),ps.q.agg.relab,"Species")
 ps.q.agg.relab<-ps.q.agg.relab%>%
   group_by(Sample)%>%
   fill(agegroup,.direction = "down")
-ggplot_species(taxa.to.plot=sulfur.bact.nmr$Species,
-               tax.df=ps.q.agg.relab,
-               tax.rank="Species",
-               sample.order=sample.levels,
-               group.names = pretty.level.names,
-               grouping.variable = "agegroup",
-               metadata.df = custom.md,
-               ggplot.fill.name = gg.labs.name,
-               ggplot.fill.vector = custom.fill)+
-  ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups"))
+sulfur.bact.plot<-ps.q.agg.relab%>%
+  filter(Species %in% sulfur.bact.nmr$Species)%>%
+  mutate(Species = factor(Species, levels = sulfur.bact.nmr$Species),
+    Species = gsub("_"," ",Species),
+         Species = paste0("<i>",Species,"</i>")
+         )%>%
+  left_join(custom.md[c("Sample","agegroup")])%>%
+  mutate(Sample=factor(Sample,levels=sample.levels$Sample))%>%
+  group_by_at(c("class","Species"))%>%
+  ggplot(aes(x=Sample,
+             y=RelativeAbundance,
+             fill=factor(agegroup)))+
+  geom_bar(stat="identity")+
+  facet_wrap(~Species,
+             scales = "free",
+             ncol = 3)+
+  theme_bw()+
+  labs(x="",
+       y="Relative abundance (%)",
+       fill=gg.labs.name)+
+  coord_cartesian(expand = c("bottom" = F))+
+  scale_color_manual(breaks = unname(pretty.level.names),
+                     labels=unname(pretty.level.names))+
+  scale_x_discrete(labels=sample.levels$Sample,
+                   limits=sample.levels$Sample)+
+  # scale_fill_manual(labels=pretty.level.names)+
+  scale_fill_viridis_d(option = "C")+
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=6),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right")
+
+  
+# sulfur.bact.plot<-ggplot_species(taxa.to.plot=sulfur.bact.nmr$Species,
+#                tax.df=ps.q.agg.relab,
+#                tax.rank="Species",
+#                sample.order=sample.levels,
+#                group.names = pretty.level.names,
+#                grouping.variable = "agegroup",
+#                metadata.df = custom.md,
+#                ggplot.fill.name = gg.labs.name)#+
+  # ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups"))
 
 
-for (image_format in c("png","tiff")){
+for (image.format in c("png","tiff")){
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "sulfur-bacteria-nmr",
-                      sep = "-"),".",image_format),
-         plot=last_plot(),
-         width = 7000,height = 9000,
-         units = "px",dpi=300,device = image_format)
+                      sep = "-"),".",image.format),
+         plot=sulfur.bact.plot,
+         width=11, height=8,units="in",
+         # width = 7000,height = 9000, units = "px",
+         dpi=300,device = image.format)
 }
 
 
-## Plot Treponema ####
+## Plot Treponema (**Supplementary figure S4**) ####
 treponema.sp.nmr<-ps.q.agg.relab%>%
   filter(Genus=="Treponema",class=="NMR")%>%
   group_by(Species)%>%
@@ -496,28 +513,69 @@ ps.q.agg.relab<-ps.q.agg.relab%>%
   group_by(Sample)%>%
   fill(agegroup,.direction = "down")
 
-ggplot_species(taxa.to.plot=treponema.sp.nmr,
-               tax.df=ps.q.agg.relab,
-               tax.rank="Species",
-               sample.order=sample.levels,
-               group.names = pretty.level.names,
-               grouping.variable = "agegroup",
-               metadata.df = custom.md,
-               ggplot.fill.name = gg.labs.name,
-               ggplot.fill.vector = custom.fill)+
-  ggtitle(paste0("Relative abundance of Treponema genus members"))
+treponema.plot<-ps.q.agg.relab%>%
+  filter(Species %in% treponema.sp.nmr)%>%
+  mutate(Species = factor(Species, levels = treponema.sp.nmr),
+         Species = gsub("_"," ",Species),
+         Species = paste0("<i>",Species,"</i>")
+  )%>%
+  left_join(custom.md[c("Sample","agegroup")])%>%
+  mutate(Sample=factor(Sample,levels=sample.levels$Sample))%>%
+  group_by_at(c("class","Species"))%>%
+  ggplot(aes(x=Sample,
+             y=RelativeAbundance,
+             fill=factor(agegroup)))+
+  geom_bar(stat="identity")+
+  facet_wrap(~Species,
+             scales = "free",
+             ncol = 3)+
+  theme_bw()+
+  labs(x="",
+       y="Relative abundance (%)",
+       fill=gg.labs.name)+
+  coord_cartesian(expand = c("bottom" = F))+
+  scale_color_manual(breaks = unname(pretty.level.names),
+                     labels=unname(pretty.level.names))+
+  scale_x_discrete(labels=sample.levels$Sample,
+                   limits=sample.levels$Sample)+
+  # scale_fill_manual(labels=pretty.level.names)+
+  scale_fill_viridis_d(option = "C")+
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=6),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
 
 
+# ggplot_species(taxa.to.plot=treponema.sp.nmr,
+#                tax.df=ps.q.agg.relab,
+#                tax.rank="Species",
+#                sample.order=sample.levels,
+#                group.names = pretty.level.names,
+#                grouping.variable = "agegroup",
+#                metadata.df = custom.md,
+#                ggplot.fill.name = gg.labs.name,
+#                ggplot.fill.vector = custom.fill)+
+#   ggtitle(paste0("Relative abundance of Treponema genus members"))
+# 
 
-for (image_format in c("png","tiff")){
+
+for (image.format in c("png","tiff")){
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "treponema.sp-nmr",
-                      sep = "-"),".",image_format),
-         plot=last_plot(),
-         width = 7000,height = 9000,
-         units = "px",dpi=300,device = image_format)
+                      sep = "-"),".",image.format),
+         plot=treponema.plot,
+         width=11, height=8,units="in",
+         # width = 7000,height = 9000, units = "px",
+         dpi=300,device = image.format)
 }
 
 
@@ -611,19 +669,19 @@ my.species.plot<-ggplot_species(taxa.to.plot=species.to.plot,
                ggplot.fill.vector = custom.fill)+
   ggtitle(paste0("Relative abundance of species from my data"))
 
-for (image_format in c("png","tiff")){
+for (image.format in c("png","tiff")){
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "myspecies.plot-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=my.species.plot,
          width = 7000,height = 5000,
-         units = "px",dpi=300,device = image_format) 
+         units = "px",dpi=300,device = image.format) 
 }
 
 
-### Groups 1, 2, and 3 ####
+### Groups 1, 2, and 3 (**Supplementary figure S2**) ####
 group1.genera<-c("Faecalibacterium",
                  "Roseburia",
                  "Coprococcus",
@@ -681,8 +739,7 @@ show.mean.abundances.and.plot<-function(taxa.to.plot,
                                         group.names,
                                         grouping.variable,
                                         metadata.df,
-                                        ggplot.fill.name,
-                                        ggplot.fill.vector){
+                                        ggplot.fill.name){
   tax.df%>%
     filter(get(tax.rank)%in%taxa.to.plot&!is.na(MeanRelativeAbundance))%>%
     group_by_at(c(tax.rank,"agegroup"))%>%
@@ -709,8 +766,7 @@ show.mean.abundances.and.plot<-function(taxa.to.plot,
                         group.names = group.names,
                         grouping.variable = grouping.variable,
                         metadata.df = metadata.df,
-                        ggplot.fill.name = ggplot.fill.name,
-                        ggplot.fill.vector = ggplot.fill.vector))
+                        ggplot.fill.name = ggplot.fill.name))
 }
 
 # ps.q.agg.genus.relab%>%
@@ -740,10 +796,20 @@ group1.genera.plot<-show.mean.abundances.and.plot(taxa.to.plot =group1.genera,
                                         group.names = pretty.level.names,
                                         grouping.variable = "agegroup",
                                         metadata.df = custom.md,
-                                        ggplot.fill.name = gg.labs.name,
-                                        ggplot.fill.vector = custom.fill)
+                                        ggplot.fill.name = gg.labs.name)
 group1.genera.plot<-group1.genera.plot+
-  ggtitle(paste0("Relative abundance of Group 1 members"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 1 members"))
 group1.genera.plot # 4 plots
 
 
@@ -755,10 +821,20 @@ group1.species.plot<-show.mean.abundances.and.plot(taxa.to.plot =group1.species,
                                                    group.names = pretty.level.names,
                                                    grouping.variable = "agegroup",
                                                    metadata.df = custom.md,
-                                                   ggplot.fill.name = gg.labs.name,
-                                                   ggplot.fill.vector = custom.fill)
+                                                   ggplot.fill.name = gg.labs.name)
 group1.species.plot<-group1.species.plot+
-  ggtitle(paste0("Relative abundance of Group 1 members"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 1 members"))
 group1.species.plot # not found
 
 # Group 2 increased genera
@@ -770,10 +846,20 @@ group2.increased.genera.plot<-show.mean.abundances.and.plot(taxa.to.plot =group2
                                                    group.names = pretty.level.names,
                                                    grouping.variable = "agegroup",
                                                    metadata.df = custom.md,
-                                                   ggplot.fill.name = gg.labs.name,
-                                                   ggplot.fill.vector = custom.fill)
+                                                   ggplot.fill.name = gg.labs.name)
 group2.increased.genera.plot<-group2.increased.genera.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members increased with age"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 2 members increased with age"))
 group2.increased.genera.plot # 4 plots
 
 # Group 2 unhealthy genera
@@ -785,10 +871,20 @@ group2.unhealthy.genera.plot<-show.mean.abundances.and.plot(taxa.to.plot=group2.
                                                             group.names = pretty.level.names,
                                                             grouping.variable = "agegroup",
                                                             metadata.df = custom.md,
-                                                            ggplot.fill.name = gg.labs.name,
-                                                            ggplot.fill.vector = custom.fill)
+                                                            ggplot.fill.name = gg.labs.name)
 group2.unhealthy.genera.plot<-group2.unhealthy.genera.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())#
+  # ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
 group2.unhealthy.genera.plot # 7 plots
 
 # Group 2 unhealthy families
@@ -800,10 +896,20 @@ group2.unhealthy.families.plot<-show.mean.abundances.and.plot(taxa.to.plot=group
                                                             group.names = pretty.level.names,
                                                             grouping.variable = "agegroup",
                                                             metadata.df = custom.md,
-                                                            ggplot.fill.name = gg.labs.name,
-                                                            ggplot.fill.vector = custom.fill)
+                                                            ggplot.fill.name = gg.labs.name)
 group2.unhealthy.families.plot<-group2.unhealthy.families.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
 group2.unhealthy.families.plot # 2 plots
 
 # Group 2 unhealthy species
@@ -815,11 +921,21 @@ group2.unhealthy.species.plot<-show.mean.abundances.and.plot(taxa.to.plot =group
                                                              group.names = pretty.level.names,
                                                              grouping.variable = "agegroup",
                                                              metadata.df = custom.md,
-                                                             ggplot.fill.name = gg.labs.name,
-                                                             ggplot.fill.vector = custom.fill)
+                                                             ggplot.fill.name = gg.labs.name)
 
 group2.unhealthy.species.plot<-group2.unhealthy.species.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging"))
 group2.unhealthy.species.plot # 6 plots
 
 
@@ -832,10 +948,20 @@ group3.genera.plot<-show.mean.abundances.and.plot(taxa.to.plot =group3.genera,
                                                   group.names = pretty.level.names,
                                                   grouping.variable = "agegroup",
                                                   metadata.df = custom.md,
-                                                  ggplot.fill.name = gg.labs.name,
-                                                  ggplot.fill.vector = custom.fill)
+                                                  ggplot.fill.name = gg.labs.name)
 group3.genera.plot<-group3.genera.plot+
-  ggtitle(paste0("Relative abundance of Group 3 members"))
+    theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 3 members"))
 group3.genera.plot # 5 plots
 
 
@@ -847,69 +973,86 @@ group3.families.plot<-show.mean.abundances.and.plot(taxa.to.plot = group3.famili
                                                   group.names = pretty.level.names,
                                                   grouping.variable = "agegroup",
                                                   metadata.df = custom.md,
-                                                  ggplot.fill.name = gg.labs.name,
-                                                  ggplot.fill.vector = custom.fill)
+                                                  ggplot.fill.name = gg.labs.name)
 group3.families.plot<-group3.families.plot+
-  ggtitle(paste0("Relative abundance of Group 3 members"))
+  theme(axis.title.y = element_text(size = 15),
+        axis.title = element_text(size = 10),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=8),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 15),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
+  # ggtitle(paste0("Relative abundance of Group 3 members"))
 group3.families.plot # 1 plots
 
-for (image_format in c("png","tiff")){
+for (image.format in c("png","tiff")){
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group1.genera-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=group1.genera.plot,
-         width = 7000,height = 4000,
-         units = "px",dpi=300,device = image_format) # 4 plots
+         width=10, height=7,units="in",
+         # width = 7000,height = 4000, units = "px",
+         dpi=300,device = image.format) # 4 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group2.increased.genera-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=group2.increased.genera.plot,
-         width = 7000,height = 4000,
-         units = "px",dpi=300,device = image_format) # 4 plots
+         width=10, height=7,units="in",
+         # width = 7000,height = 4000,units = "px",
+         dpi=300,device = image.format) # 4 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group2.unhealthy.genera-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=group2.unhealthy.genera.plot,
-         width = 7000,height = 5000,
-         units = "px",dpi=300,device = image_format) # 7 plots
+         width=10, height=7,units="in",
+         # width = 7000,height = 5000,units = "px",
+         dpi=300,device = image.format) # 7 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group2.unhealthy.families-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=group2.unhealthy.families.plot,
-         width = 7000,height = 2000,
-         units = "px",dpi=300,device = image_format)    # 2 plots
+         width=10, height=5,units="in",
+         # width = 7000,height = 2000, units = "px",
+         dpi=300,device = image.format)    # 2 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group2.unhealthy.species-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=group2.unhealthy.species.plot,
-         width = 7000,height = 5000,
-         units = "px",dpi=300,device = image_format)    # 6 plots
+         width=10, height=8,units="in",
+         # width = 7000,height = 5000, units = "px",
+         dpi=300,device = image.format)    # 6 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group3.genera-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot= group3.genera.plot ,
-         width = 7000,height = 5000,
-         units = "px",dpi=300,device = image_format)    # 5 plots
+         width=10, height=8,units="in",
+         # width = 7000,height = 5000, units = "px",
+         dpi=300,device = image.format)    # 5 plots
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "group3.families-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot= group3.families.plot ,
-         width = 4000,height = 2000,
-         units = "px",dpi=300,device = image_format)    # 1 plot
+         width=7, height=5,units="in",
+         # width = 4000,height = 2000, units = "px",
+         dpi=300,device = image.format)    # 1 plot
   
 }
 
@@ -1117,31 +1260,31 @@ kingdom.boxplot.labeled<-kingdom.boxplot+
   geom_label_repel(aes(label=Sample_age))
 
 
-for (image_format in c("png","tiff")){
+for (image.format in c("png","tiff")){
   ggsave(paste0("./images/boxplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "kingdom-boxplot-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=kingdom.boxplot,
          width = 4000,height = 2000,
-         units = "px",dpi=300,device = image_format)
+         units = "px",dpi=300,device = image.format)
   ggsave(paste0("./images/boxplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "kingdom-boxplot-nmr-dots",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=kingdom.boxplot.dots,
          width = 4000,height = 2000,
-         units = "px",dpi=300,device = image_format)
+         units = "px",dpi=300,device = image.format)
   ggsave(paste0("./images/boxplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "kingdom-boxplot-nmr-labeled",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=kingdom.boxplot.labeled,
          width = 5000,height = 2000,
-         units = "px",dpi=300,device = image_format)
+         units = "px",dpi=300,device = image.format)
 }
 
 kingdom.df<-ps.q.agg.relab%>%

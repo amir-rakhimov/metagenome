@@ -1,4 +1,5 @@
 # Create a table that shows percentage of unclassified reads per sample
+# (**Table 5**).
 # The number of unclassified reads was taken from the job report.
 library(tidyverse)
 date_time<-"20240409_17_32_40"

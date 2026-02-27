@@ -4,12 +4,7 @@ library(Maaslin2)
 library(vegan)
 # phyloseq.date_time<-"20240619_14_11_06"
 pipeline.name<-"kraken2"
-pipeline.name<-"singlem"
-if(pipeline.name=="kraken2"){
-  ps.q.df.preprocessed.date_time<-"20241004_15_12_22"
-}else if (pipeline.name=="singlem"){
-  ps.q.df.preprocessed.date_time<-"20240929_23_33_37" # this is actually unrarefied table
-}
+ps.q.df.preprocessed.date_time<-"20241004_15_12_22"
 
 rdafiles.directory<-"./output/rdafiles"
 rtables.directory<-"./output/rtables"
@@ -24,17 +19,11 @@ host<-"NMR"
 ref.level<-"agegroup0_10" # choose the reference level
 # ref.level<-"F"
 # this is for file names
-if(host=="NMR"){
-  host.labels<-c("NMR" = "*Heterocephalus glaber*")
-}else{
-  host.labels<-
-    c("B6mouse" = "B6 mouse",
-      "MSMmouse" = "MSM/Ms mouse",
-      "FVBNmouse" = "FVB/N mouse")
-}
+host.labels<-c("NMR" = "*Heterocephalus glaber*")
 custom.levels<-c("NMR")
 agglom.rank<-"Species"
-custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))
+custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))%>%
+  filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
 
 rare.status<-"rare"
 filter.status<-"nonfiltered"
@@ -50,56 +39,16 @@ ps.q.df.preprocessed<-read.table(
 ps.q.df.preprocessed$Sample<-as.factor(ps.q.df.preprocessed$Sample)
 ps.q.df.preprocessed$class<-as.factor(ps.q.df.preprocessed$class)
 
-# Break the data into age groups
-# age.breaks<-c(min(custom.md$age),10,max(custom.md$age))
-age.breaks<-c(0,10,16)
-if(host=="NMR"){
-  # select nmr and add age groups
-  ps.q.df.preprocessed<-ps.q.df.preprocessed%>%
-    mutate(agegroup=cut(age, breaks = age.breaks, 
-                         right = FALSE))
-  # we create these new levels because maaslin is itsy bitsy
-  unique_levels <- ps.q.df.preprocessed %>%
-    ungroup()%>%
-    distinct(agegroup)%>%
-    arrange(agegroup) %>%
-    mutate(new_agegroup = paste0("agegroup", agegroup))%>%
-    mutate(new_agegroup = gsub("\\(|\\)|\\[|\\]","",new_agegroup))%>%
-    mutate(new_agegroup = gsub("\\,","_",new_agegroup))
-  ps.q.df.preprocessed <- ps.q.df.preprocessed %>%
-    left_join(unique_levels, by = "agegroup")
-  colnames(ps.q.df.preprocessed)[which(colnames(ps.q.df.preprocessed)=="agegroup")]<-"old_agegroup"
-  colnames(ps.q.df.preprocessed)[which(colnames(ps.q.df.preprocessed)=="new_agegroup")]<-"agegroup"
-  # add age group to metadata
-  custom.md$Sample<-rownames(custom.md)
-  custom.md<-custom.md%>% 
-    filter(Sample %in% ps.q.df.preprocessed$Sample)%>%
-    group_by(Sample)%>%
-    mutate(birthday=as.Date(birthday))%>%
-    mutate(age=year(as.period(interval(birthday,as.Date("2023-11-16")))))%>%
-    left_join(unique(ps.q.df.preprocessed[,c("Sample","agegroup","old_agegroup")]),by="Sample")%>%
-    mutate(agegroup=as.factor(agegroup))%>%
-    as.data.frame()
-  rownames(custom.md)<-custom.md$Sample
-  # saveRDS(custom.md,file="./output/rdafiles/custom.md.ages.rds")
-}else if(host=="mice"){
-  # select mice and add age groups: B6, old, or young
-  # B6 are separate
-  # mice born before 2020 are old
-  # after 2023 are young
-  custom.levels<-c("B6mouse",
-                   "MSMmouse",
-                   "FVBNmouse")
-  ps.q.df.preprocessed<-ps.q.df.preprocessed%>%
-    filter(class%in%custom.levels,Abundance!=0)
-  ps.q.df.preprocessed$agegroup<-ifelse(ps.q.df.preprocessed$class=="B6mouse","B6",
-                                         ifelse(grepl("2020",ps.q.df.preprocessed$birthday),"old","young"))
-  # also to metadata
-  custom.md<-custom.md%>%
-    filter(class%in%custom.levels)
-  custom.md$agegroup<-ifelse(custom.md$class=="B6mouse","B6",
-                             ifelse(grepl("2020",custom.md$birthday),"old","young"))
-}
+# add age groups
+ps.q.df.preprocessed <- ps.q.df.preprocessed%>%
+  left_join(custom.md[,c("Sample", "agegroup")])
+
+# we create these new levels because maaslin is itsy bitsy
+unique_levels<-custom.md%>%
+  distinct(agegroup)%>%
+  arrange(agegroup)%>%
+  pull()
+
 # Creating custom levels ####
 if (comparison=="age"){
   # names for levels are age groups
@@ -281,10 +230,10 @@ for (sample in unique(ps.q.agg.relab$Sample)) {
 # To fill the NA values in the empty columns based on non-empty rows in the Sample column 
 ps.q.agg.relab<- ps.q.agg.relab %>%
   group_by(Sample) %>%
-  left_join(unique(ps.q.df.preprocessed[,c("Sample","agegroup","old_agegroup")]),by="Sample")%>%
+  left_join(unique(custom.md),by="Sample")%>%
   fill(age, .direction = "down")%>%
-  fill(agegroup, .direction = "down")%>%
-  fill(old_agegroup, .direction = "down")
+  fill(agegroup, .direction = "down")#%>%
+  # fill(old_agegroup, .direction = "down")
 
 
 # for (i in seq(nrow(maaslin.signif.features))){
@@ -345,19 +294,7 @@ ps.q.agg%>%
 
 
 # Plot differentially abundant species ####
-set.seed(1)
-library(Polychrome)
-custom.fill<-createPalette(length(custom.levels),
-                           seedcolors = c("#EE2C2C","#5CACEE","#00CD66",
-                                          "#FF8C00","#BF3EFF", "#00FFFF",
-                                          "#FF6EB4","#00EE00","#EEC900",
-                                          "#FFA07A"))
-names(custom.fill)<-custom.levels
-swatch(custom.fill)
-
 gg.labs.name<-"Age group"
-
-
 
 sample.levels<-custom.md%>%
   filter(Sample%in%ps.q.agg$Sample)%>%
@@ -387,38 +324,43 @@ diff.abund.plot<-ps.q.agg.relab%>%
   labs(x="",
        y="Relative abundance (%)",
        fill=gg.labs.name)+
+  coord_cartesian(expand = c("bottom" = FALSE))+
   scale_color_manual(breaks = pretty.level.names,
                      labels=unname(pretty.level.names))+
   scale_x_discrete(labels=pretty.level.names,
                    limits=sample.levels$Sample)+ 
-  scale_fill_manual(values = custom.fill,
-                    labels=pretty.level.names)+
-  theme(plot.margin=unit(c(1,1,1,2), 'cm'),
-        axis.title = element_text(size = 20),
-        axis.title.y = element_text(size = 25),
-        axis.text.y = ggtext::element_markdown(size=18),
-        axis.text.x = element_text(size=20),
-        strip.text.x = ggtext::element_markdown(size=20),
-        plot.title = element_text(size = 27),
-        legend.text = element_text(size = 20),
-        legend.title = element_text(size = 25),
-        legend.position = "right")+
-  ggtitle(paste0("Relative abundance of differentially abundant species in different naked mole-rat age groups"))
+  scale_fill_manual(labels=pretty.level.names)+
+  scale_fill_viridis_d(option = "C")+
+  # ggtitle(paste0("Relative abundances of differentially abundant species in different naked mole-rat age groups"))+
+  theme(
+    # plot.margin=unit(c(1,1,1,2), 'cm'),
+        axis.title = element_text(size = 10),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = ggtext::element_markdown(size=10),
+        axis.text.x = element_text(size=10),
+        strip.text.x = ggtext::element_markdown(size=10),
+        plot.title = element_text(size = 17),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12),
+        legend.position = "right",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())
 
 
-for (image_format in c("png","tiff")){
+for (image.format in c("png","tiff")){
   if(nrow(maaslin.signif.features)==1){
-    diff.abund.plot<-diff.abund.plot+
-      ggtitle(paste0("Relative abundance of differentially abundant species\nin different naked mole-rat age groups"))
+    # diff.abund.plot<-diff.abund.plot+
+    #   ggtitle(paste0("Relative abundance of differentially abundant species\nin different naked mole-rat age groups"))
   }
   ggsave(paste0("./images/barplots/",
                 paste(paste(format(Sys.time(),format="%Y%m%d"),
                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
                       "diffabund-bacteria-nmr",
-                      sep = "-"),".",image_format),
+                      sep = "-"),".",image.format),
          plot=diff.abund.plot,
-         width = ifelse(nrow(maaslin.signif.features)==1,4000,7000),
-         height = ifelse(nrow(maaslin.signif.features)==1,2000,9000),
-         units = "px",dpi=300,device = image_format)
+         width=7, height=4,units="in",
+         # width = ifelse(nrow(maaslin.signif.features)==1,4000,7000),
+         # height = ifelse(nrow(maaslin.signif.features)==1,2000,9000), units = "px",
+         dpi=300,device = image.format)
 }
 
