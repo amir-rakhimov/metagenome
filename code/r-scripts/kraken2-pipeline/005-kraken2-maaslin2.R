@@ -1,59 +1,86 @@
+#' ---
+#' output: 
+#'   bookdown::html_document2:
+#'      toc: true
+#' ---
+
+#' ```{r, setup 007-diffabund-tests.R, include=FALSE}
+#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
+#' ```
+#' ```{r, echo = FALSE}
+#' # For showing images, tables, etc: Use global path
+#' # knitr::spin("code/r-scripts/kraken2-pipeline/005-kraken2-maaslin2.R", knit = FALSE)
+#' # file.rename("code/r-scripts/kraken2-pipeline/005-kraken2-maaslin2.Rmd",
+#' #             "markdown/005-kraken2-maaslin2.Rmd")
+#' # rmarkdown::render('./markdown/005-kraken2-maaslin2.Rmd', 
+#' #                   'html_document',
+#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
+#' ```
+#+ echo=FALSE
+# Differential microbial abundance tests with MaAsLin2 ####
+#' # Differential microbial abundance tests with MaAsLin2
+#+ echo=FALSE
+## Introduction ####
+#'
+#' ## Introduction
+#' This script performs differential microbial abundance tests on 
+#' different hosts. We will use MaAsLin2.
+#+ echo=FALSE
+## 1. Load necessary libraries. ####
+#'
+#' ## Load necessary libraries.
+# if(!requireNamespace("BiocManager")){
+#   install.packages("BiocManager")
+# }
+# Current: Bioconductor version 3.20 (BiocManager 1.30.27), R 4.4.3 (2025-02-28 ucrt)
+#' Maaslin2: 1.20.0
+# BiocManager::install(c("Maaslin2","phyloseq"), version = "3.20")
+# BiocManager::install("phyloseq", version = "3.17")
+# install.packages(c("tidyverse","vegan"))
 library(tidyverse)
 library(phyloseq)
 library(Maaslin2)
 library(vegan)
-# phyloseq.date_time<-"20240619_14_11_06"
-ps.q.df.preprocessed.date_time<-"20241004_15_12_22"# tsv
-ps.q.df.preprocessed.date_time<-"20260227_17_58_35"# rds
-
+#+ echo=FALSE
+## 2. Specifying parameters and directory/file names. #### 
+#'
+#' ## Specifying parameters and directory/file names. 
+#' Directories with input files:
 rdafiles.directory<-"./output/rdafiles"
 rtables.directory<-"./output/rtables"
 metadata.directory<-"../amplicon_nmr/output/rdafiles"
-# choose what to compare
+#' Import the rarefied abundance table (RDS):
+ps.q.df.preprocessed.date_time<-"20260227_17_58_35"
+#' Choose what to compare:
 comparison<-"age"
-# comparison<-"sex"
-# choose the host of interest
-host<-"NMR"
-ref.level<-"agegroup0_10" # choose the reference level
-# ref.level<-"F"
-# this is for file names
-host.labels<-c("NMR" = "*Heterocephalus glaber*")
-custom.levels<-c("NMR")
+#' Choose the reference level:
+ref.level<-"agegroup0_10" 
 agglom.rank<-"Species"
-custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))%>%
-  filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
-
 rare.status<-"rare"
 filter.status<-"nonfiltered"
-
-# Import data ####
-ps.q.df.preprocessed<-read.table(
-  file.path(rtables.directory,paste0(
-    paste(ps.q.df.preprocessed.date_time,
-          "kraken2","ps.q.df.rare-nonfiltered",agglom.rank,
-          paste(host,collapse = '-'),sep = "-"),".tsv")),
-  header = T,sep = "\t")
-
+#' Add metadata:
+custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))%>%
+  filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
+#+ echo=FALSE
+## 3. Import the rarefied dataset (RDS). ####
+#'
+#' ## 3. Import the rarefied dataset (RDS). 
 ps.q.df.preprocessed<-
   readRDS(file = file.path(rdafiles.directory,
                            paste(ps.q.df.preprocessed.date_time,
                                  "kraken2","ps.q.df.rare-nonfiltered",agglom.rank,
-                                 "NMR.rds",sep = "-")) )
+                                 "NMR.rds",sep = "-")) )%>%
+  as_tibble()%>%
+  mutate(class = factor(class))
 
-ps.q.df.preprocessed$Sample<-as.factor(ps.q.df.preprocessed$Sample)
-ps.q.df.preprocessed$class<-as.factor(ps.q.df.preprocessed$class)
-
-# add age groups
+#' Add age groups:
 ps.q.df.preprocessed <- ps.q.df.preprocessed%>%
   left_join(custom.md[,c("Sample", "agegroup")])
 
-# we create these new levels because maaslin is itsy bitsy
-unique_levels<-custom.md%>%
-  distinct(agegroup)%>%
-  arrange(agegroup)%>%
-  pull()
-
-# Creating custom levels ####
+#+ echo=FALSE
+## 4. Prepare the data for test. ####
+#'
+#' ## 4. Prepare the data for test. 
 if (comparison=="age"){
   # names for levels are age groups
   pretty.level.names<-names(table(custom.md$old_agegroup))
@@ -67,8 +94,10 @@ if (comparison=="age"){
   custom.levels<-names(pretty.level.names)
   
 }
-# Preparing the dataset ####
-# filter the dataset
+#+ echo=FALSE
+## 5. Filter the dataset and convert into a wide format. ####
+#'
+#' ## Filter the dataset and convert into a wide format.
 ps.q.df <-ps.q.df.preprocessed%>%
   dplyr::select(all_of(c("Sample","Abundance","class",agglom.rank)))%>%
   filter(Abundance!=0)
@@ -77,24 +106,22 @@ ps.q.df.wide<-ps.q.df%>%
               values_from = "Abundance",
               values_fill = 0)%>%
   as.data.frame()
-# colnames are OTUs and rownames are sample IDs
+#' Colnames are Species and rownames are sample IDs
 rownames(ps.q.df.wide)<-ps.q.df.wide$Sample
 ps.q.df.wide<-subset(ps.q.df.wide,select = -Sample)
 ps.q.df.wide<-subset(ps.q.df.wide,select = -class)
 
-
-# 3.2 Running MaAsLin 2 ####
+#+ echo=FALSE
+## 5. Run MaAsLin 2. ####
+#'
+#' ## Run MaAsLin 2.
 if (comparison=="age"){
   maaslin.reference<-paste("agegroup",ref.level,sep = ",")
   maaslin.comparison<-c("agegroup")
 }else if(comparison=="sex"){
   maaslin.reference<-paste("sex","F",sep = ",")
   maaslin.comparison<-"sex"
-}else if(comparison=="strain"){
-  maaslin.reference<-paste("class",ref.level,sep = ",")
-  maaslin.comparison<-"class"
 }
-
 # Add relations
 relations<-read.table("../amplicon_nmr/data/metadata/pooled-metadata/nmr-relations.tsv",
                       header = T,
@@ -117,44 +144,48 @@ maaslin.fit_data =
                               rare.status,paste(
                                 paste(format(Sys.time(),format="%Y%m%d"),
                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                host,filter.status,agglom.rank,comparison,
+                                "NMR",filter.status,agglom.rank,comparison,
                                 paste(custom.levels,collapse = '-'),
                                 "ref",ref.level,sep = "-")), 
            fixed_effects =maaslin.comparison,
            reference = maaslin.reference,
            max_significance = 0.05)
+#' Save the fit_data object as an RDS file.
+# saveRDS(maaslin.fit_data,
+#         file = file.path("output/rdafiles",
+#                          paste(
+#                            paste(format(Sys.time(),format="%Y%m%d"),
+#                                  format(Sys.time(),format = "%H_%M_%S"),
+#                                  sep = "_"),
+#                            "kraken2-maaslin.fit_data.age-NMR-Species-age-ref",
+#                            ref.level,".rds",sep = "-")))
 
-saveRDS(maaslin.fit_data,
-        file = file.path("output/rdafiles",
-                         paste(
-                           paste(format(Sys.time(),format="%Y%m%d"),
-                                 format(Sys.time(),format = "%H_%M_%S"),
-                                 sep = "_"),
-                           "kraken2-maaslin.fit_data.age-NMR-Species-age-ref",
-                           ref.level,".rds",sep = "-")))
+# save.image(file.path("./output/rdafiles",paste(
+#   paste(format(Sys.time(),format="%Y%m%d"),
+#         format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#   "maaslin2","kraken2",rare.status,filter.status,"NMR",agglom.rank,
+#   comparison,paste(custom.levels,collapse = '-'),"ref",
+#   ref.level,"workspace.RData",sep="-")))
 
-save.image(file.path("./output/rdafiles",paste(
-  paste(format(Sys.time(),format="%Y%m%d"),
-        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-  "maaslin2","kraken2",rare.status,filter.status,host,agglom.rank,
-  comparison,paste(custom.levels,collapse = '-'),"ref",
-  ref.level,"workspace.RData",sep="-")))
-
-# Load output for plotting ######
+#+ echo=FALSE
+## 6. Plotting the output. ####
+#'
+#' ## Plotting the output.
 # maaslin.date_time<-"20240621_18_31_55"
+#' Load the unrarefied abundance table.
 ps.q.agg.date_time<-"20241003_13_52_43"
 metric.labs<-c("agegroup0_10"="Young naked mole-rats",
                "agegroup10_16"="Old naked mole-rats")
-# 
 # load(file.path("./output/rdafiles",paste(
 #   maaslin.date_time,
-#   "maaslin2-kraken2",rare.status,filter.status,host,agglom.rank,
+#   "maaslin2-kraken2",rare.status,filter.status,"NMR",agglom.rank,
 #   comparison,paste(sort(custom.levels),collapse = '-'),"ref",
 #   ref.level,"workspace.RData",sep="-")))
 ps.q.agg<-readRDS(file.path(rdafiles.directory,
                             paste(ps.q.agg.date_time,"phyloseq-kraken2",
                                   agglom.rank,"table.rds",sep = "-")))
 source("../amplicon_nmr/code/r-scripts/make_features_maaslin.R")
+#' Extract features with qvalue < 0.05.
 if(min(maaslin.fit_data$results$qval)<0.05){
   maaslin.signif.features<-maaslin.fit_data$results%>%
     filter(qval<0.05) # should be qval
@@ -177,8 +208,7 @@ maaslin.signif.features<-subset(maaslin.signif.features, select=-Species)
 
 table(maaslin.signif.features$feature%in%ps.q.agg$Species)
 
-
-# Plot differentially abundant species ####
+#' Plot differentially abundant species.
 gg.labs.name<-"Age group"
 
 sample.levels<-custom.md%>%
@@ -189,7 +219,7 @@ sample.levels<-custom.md%>%
   mutate(Sample=factor(Sample,
                        levels=Sample))
 
-diff.abund.plot<-ps.q.agg.relab%>%
+diff.abund.plot<-ps.q.agg%>%
   mutate(Sample=factor(Sample,levels=sample.levels$Sample))%>%
   filter(Species%in%maaslin.signif.features$feature)%>%
   left_join(maaslin.signif.features[,c("feature","qval")],
@@ -232,20 +262,23 @@ diff.abund.plot<-ps.q.agg.relab%>%
 #+ fig.width=7, fig.height=4,
 print(diff.abund.plot +
         ggtitle(paste0("Relative abundances of differentially abundant species in different naked mole-rat age groups")))
-for (image.format in c("png","tiff")){
-  if(nrow(maaslin.signif.features)==1){
-    # diff.abund.plot<-diff.abund.plot+
-    #   ggtitle(paste0("Relative abundance of differentially abundant species\nin different naked mole-rat age groups"))
-  }
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "diffabund-bacteria-nmr",
-                      sep = "-"),".",image.format),
-         plot=diff.abund.plot,
-         width=7, height=4,units="in",
-         # width = ifelse(nrow(maaslin.signif.features)==1,4000,7000),
-         # height = ifelse(nrow(maaslin.signif.features)==1,2000,9000), units = "px",
-         dpi=300,device = image.format)
-}
+# for (image.format in c("png","tiff")){
+#   if(nrow(maaslin.signif.features)==1){
+#     # diff.abund.plot<-diff.abund.plot+
+#     #   ggtitle(paste0("Relative abundance of differentially abundant species\nin different naked mole-rat age groups"))
+#   }
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "diffabund-bacteria-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=diff.abund.plot,
+#          width=7, height=4,units="in",
+#          # width = ifelse(nrow(maaslin.signif.features)==1,4000,7000),
+#          # height = ifelse(nrow(maaslin.signif.features)==1,2000,9000), units = "px",
+#          dpi=300,device = image.format)
+# }
 
+sessionInfo()
+rm(list = ls(all=TRUE))
+gc()
