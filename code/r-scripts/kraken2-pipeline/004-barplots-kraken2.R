@@ -4,15 +4,17 @@
 #'      toc: true
 #' ---
 
-#' ```{r, setup 005-barplots-kraken2.R, include=FALSE}
-#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/amplicon_nmr')
+#' ```{r, setup 004-barplots-kraken2.R, include=FALSE}
+#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
 #' ```{r, echo = FALSE}
 #' # For showing images, tables, etc: Use global path
-#' #knitr::spin("code/r-scripts/005-barplots-kraken2.R", knit = FALSE)
-#' #file.rename("code/r-scripts/005-barplots-kraken2.Rmd", "markdown/005-barplots-kraken2.Rmd")
-#' #rmarkdown::render('./markdown/005-barplots-kraken2.Rmd', 'html_document',
-#' # knit_root_dir="/home/rakhimov/projects/amplicon_nmr/")
+#' # knitr::spin("code/r-scripts/kraken2-pipeline/004-barplots-kraken2.R", knit = FALSE)
+#' # file.rename("code/r-scripts/kraken2-pipeline/004-barplots-kraken2.Rmd",
+#' #             "markdown/004-barplots-kraken2.Rmd")
+#' # rmarkdown::render('./markdown/004-barplots-kraken2.Rmd', 
+#' #                   'html_document',
+#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
 #' ```
 #+ echo=FALSE
 # Barplots ####
@@ -22,8 +24,8 @@
 ## Introduction ####
 #'
 #' ## Introduction
-#' After importing the kraken2 output files into R and processing them with phyloseq,
-#' it's time to explore the taxonomic composition of our data.
+#' After importing the kraken2 output files into R and processing them 
+#' with phyloseq, it's time to explore the taxonomic composition of our data.
 #' We will use the Polychrome package to create a custom palette for the 
 #' barplots.
 
@@ -36,8 +38,6 @@
 library(tidyverse)
 library(Polychrome)
 library(ggtext)
-# Import function that creates barplot legend
-source("../amplicon_nmr/code/r-scripts/create_barplot_legend.R")
 #+ echo=FALSE
 ## 2. Specifying parameters and directory/file names. #### 
 #'
@@ -60,22 +60,8 @@ ps.q.agg<-readRDS(file=file.path(
 #' Import metadata:
 custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))%>%
   filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
-#' Set "pretty" labels for barplot facets that correspond to animal hosts. 
-#' Here, the left side of the vector (values) is taken from the metadata, 
-#' while the right side (names) are the pretty labels that will be shown on 
-#' the final barplot.
-pretty.level.names<-c("NMR" = "*Heterocephalus glaber*") # better labels for facets)
 
-# Set custom levels for the barplot. These are the animal hosts that will be used
-# in barplots.
-# Use only the taxa that are present in the workspace
-# (custom.md is metadata from the rdafile)
-custom.levels<-intersect(names(pretty.level.names),custom.md$class)
-# Filter the phyloseq object to retain animal hosts from custom.levels
-ps.q.agg<-ps.q.agg%>%
-  filter(class%in%custom.levels,Abundance!=0)
-
-# Check the total number of taxa (not filtered by mean relative abundance)
+#' Check the total number of taxa (not filtered by mean relative abundance)
 ps.q.agg%>%
   ungroup()%>%
   select(matches(paste0("^",agglom.rank,"$")))%>%
@@ -83,36 +69,38 @@ ps.q.agg%>%
   unique()%>%
   sort()%>%
   length()
-# select(matches(paste0("^",agglom.rank,"$"))) will select variables that 
-# match a pattern (regex).
-# So, if we are agglomerating by Phylum, the command will select the Phylum column
+#' select(matches(paste0("^",agglom.rank,"$"))) will select variables that 
+#' match a pattern (regex).
+#' So, if we are agglomerating by Phylum, the command will select the Phylum column
 
-
-# Barplot ####
+#+ echo=FALSE
+## 3. Set up the barplot. #### 
+#'
+#' ## Set up the barplot. 
+#' Find the column number that precedes Species (Genus column).
 if(agglom.rank=="Species"){
   agglom.rank.col<-which(colnames(ps.q.agg) =="Species")
   preceding.rank.col<-which(colnames(ps.q.agg) ==agglom.rank)-1
   preceding.rank<-colnames(ps.q.agg)[preceding.rank.col]
-  
 }else{
   agglom.rank.col<-which(colnames(ps.q.agg) ==agglom.rank)
   preceding.rank.col<-which(colnames(ps.q.agg) ==agglom.rank)-1
   preceding.rank<-colnames(ps.q.agg)[preceding.rank.col]
 }
 custom_order <- c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
-# If we agglomerate by higher level (Order,Class, etc), need to adjust the rank
+#' If we agglomerate by higher level (Order,Class, etc), need to adjust the rank
 if(agglom.rank%in%custom_order){
   agglom.rank.index<-match(agglom.rank,custom_order)
   custom_order<-custom_order[1:agglom.rank.index-1]
 }
-
+#' Find the average number of characters in the taxa to wrap long names:
 avg.taxon.len <- ps.q.agg%>%
   select(all_of(agglom.rank))%>%
   pull%>%
   nchar%>%
   mean%>%
   round
-
+#' Hide rare taxa, wrap long names, highlight non-bacterial taxa.
 new.df<-ps.q.agg%>%
   unite("taxon",Kingdom:all_of(agglom.rank),sep = ";",remove = FALSE)%>%
   mutate(is_unclassified = grepl
@@ -162,27 +150,31 @@ new.df<-ps.q.agg%>%
            after=0))%>% # change taxon column to factor. Then, we set "Remainder" as the first level, unclassified taxa next, then classified taxa. we use the str_detect to find unclassified taxa because these have Kingdom or Phylum in the name
   ungroup()
 
-# Create a color palette
-# We need to choose colors for the taxa in our barplot. They should be 
-# distinguishable, so we can't choose similar colors. Or at least we shouldn't 
-# put them next to each other.
-# 
-# We will use `createPalette` function from the `Polychrome` package.
-# The function takes the number of colors for the palette and seed colors that 
-# will be used for palette generation. In this case, we use the number of
-# rows in our legend (taxa) and rainbow colors (to avoid having similar colors 
-#                                               next to each other). 
-# We also need to set the random seed because the output
-# is a bit random. The output is a vector of colors.
+#' Create a color palette.  
+#' We need to choose colors for the taxa in our barplot. They should be
+#' distinguishable, so we can't choose similar colors. Or at least we shouldn't
+#' put them next to each other.
+#' 
+#' We will use `createPalette` function from the `Polychrome` package.
+#' The function takes the number of colors for the palette and seed colors that
+#' will be used for palette generation. In this case, we use the number of
+#' rows in our legend (taxa) and rainbow colors (to avoid having similar colors
+#' next to each other).
+#' We also need to set the random seed because the output
+#' is a bit random. The output is a vector of colors.
 
 set.seed(1)
 plot.cols<-createPalette(length(levels(unique(new.df$taxon))),
                          seedcolors =rainbow(7))# input: number of rows
-
+#' Grey color is added ahead of others because it corresponds to Remainder 
+#' taxa. 
 plot.cols<-c("#C1CDCD",plot.cols[1:length(plot.cols)-1])
 col.vec<-setNames(plot.cols,levels(new.df$taxon))
 
-## Plot the barplot ####
+#+ echo=FALSE
+## 3. Plot the barplot. ####
+#'
+#' ## Plot the barplot. 
 mainplot<-new.df%>%
   left_join(custom.md[,c("Sample","age","host_birthday")])%>%
   arrange(age,host_birthday)%>%
@@ -217,28 +209,29 @@ mainplot<-new.df%>%
         legend.text = element_markdown(size = 13), # size of legend text
         legend.title = element_text(size = 17), # size of legend title
         legend.position = "right") # legend on the right
-
-#' Show the plot:
 #+ fig.height=8, fig.width=11
 print(mainplot+
         ggtitle(paste(agglom.rank,"level gut microbiota profiles of fecal samples from naked mole-rats"))+
         theme(plot.title = element_text(size=15))
 )
 
-for(image.format in image.formats){
-  ggsave(paste0(barplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "kraken2","barplot","NMR",
-                      agglom.rank,
-                      sep = "-"),".",image.format),
-         plot=mainplot,
-         width=11, height=7,units="in",
-         # width = 5000,height = 3200, units = "px",
-         dpi=300,device = image.format)
-}
+# for(image.format in image.formats){
+#   ggsave(paste0(barplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "kraken2","barplot","NMR",
+#                       agglom.rank,
+#                       sep = "-"),".",image.format),
+#          plot=mainplot,
+#          width=11, height=7,units="in",
+#          dpi=300,device = image.format)
+# }
 
-# Relative abundance per kingdom (including bacteria) ####
+#+ echo=FALSE
+## 4. Relative abundance per kingdom (including bacteria). ####
+#'
+#' ## Relative abundance per kingdom (including bacteria).
+#' Read table with unclassified read numbers.
 unclassified_reads<-read.table("./output/kraken2_pipeline/20240409_17_32_40_unclassified_reads.tsv",
                                header = T)
 colnames(unclassified_reads)[which(colnames(unclassified_reads)=="Unclassified")]<-"Abundance"
@@ -280,27 +273,24 @@ kingdom.plot.with_bact<-ps.q.agg%>%
         legend.position = "none",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank()) # no legend 
-#' Show the plot:
 #+ fig.height=8, fig.width=11
 print(kingdom.plot.with_bact+
         ggtitle("Whole metagenome sequencing profile of naked mole-rat gut microbiota
                (Kingdom level)")+
         theme(plot.title = ggtext::element_markdown(size=15))
 )
-# save the plots: kingdom.plot.with_bact
-for(image.format in image.formats){
-  ggsave(paste0(barplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "NMR","kingdom.plot.with_unclas",
-                      sep = "-"),".",image.format),
-         plot=kingdom.plot.with_bact,
-         width=11, height=6,units="in",
-         # width = 5000,height = 3000, units = "px",
-         dpi=300,device = image.format)
-}
+# for(image.format in image.formats){
+#   ggsave(paste0(barplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "NMR","kingdom.plot.with_unclas",
+#                       sep = "-"),".",image.format),
+#          plot=kingdom.plot.with_bact,
+#          width=11, height=6,units="in",
+#          dpi=300,device = image.format)
+# }
 
-# Check library size per sample
+#' Check library size per sample (not included)
 ps.q.agg%>%
   group_by(Sample,Kingdom)%>%
   summarise(Abundance=sum(Abundance))%>%
@@ -308,8 +298,7 @@ ps.q.agg%>%
   group_by(Sample)%>%
   summarise(TotalSample=sum(Abundance))%>%
   ggplot(aes(x=Sample,y=TotalSample,fill=TotalSample))+
-  geom_bar(stat = "identity")%>%
-  print()
+  geom_bar(stat = "identity")
 
 sessionInfo()
 rm(list = ls(all=TRUE))
