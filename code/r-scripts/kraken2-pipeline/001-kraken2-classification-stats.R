@@ -9,14 +9,15 @@
 #' ```
 #' ```{r, echo = FALSE}
 #' # For showing images, tables, etc: Use global path
-#' #knitr::spin("code/r-scripts/001-kraken2-classification-stats.R", knit = FALSE)
-#' #file.rename("code/r-scripts/001-kraken2-classification-stats.Rmd", 
-#'  "markdown/001-kraken2-classification-stats.Rmd")
-#' #rmarkdown::render('./markdown/001-kraken2-classification-stats.Rmd', 
-#'    'html_document',
-#' # knit_root_dir="/home/rakhimov/projects/metagenome/")
+#' # knitr::spin("code/r-scripts/kraken2-pipeline/001-kraken2-classification-stats.R", 
+#' #             knit = FALSE)
+#' # file.rename("code/r-scripts/kraken2-pipeline/001-kraken2-classification-stats.Rmd", 
+#' #             "markdown/001-kraken2-classification-stats.Rmd")
+#' # rmarkdown::render('./markdown/001-kraken2-classification-stats.Rmd', 
+#' #                   'html_document',
+#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
 #' ```
-#' 
+#' # Whole metagenome sequencing (shotgun sequencing) analysis {-}
 #+ echo=FALSE
 # Create a table with classification statistics ####
 #' # Create a table with classification statistics
@@ -37,6 +38,7 @@ kraken2.results<-kraken2.results%>%
   mutate(ClassifiedRate=Classified/Total*100)%>%
   mutate(meanClassifiedRate=round(mean(ClassifiedRate)))%>%
   mutate(SDClassifiedRate=round(sd(ClassifiedRate),3))
-write.table(kraken2.results,file.path("./output/rtables",
-                      paste(date_time,"kraken2-classification-stats.tsv",
-                            sep="_")),row.names = F,quote = F,sep = "\t")
+kraken2.results
+# write.table(kraken2.results,file.path("./output/rtables",
+#                       paste(date_time,"kraken2-classification-stats.tsv",
+#                             sep="_")),row.names = F,quote = F,sep = "\t")
