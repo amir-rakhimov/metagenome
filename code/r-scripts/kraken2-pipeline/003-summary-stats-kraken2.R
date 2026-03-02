@@ -5,14 +5,17 @@
 #' ---
 #' 
 #' ```{r, setup 003-summary-stats-kraken2.R, include=FALSE}
-#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/amplicon_nmr')
+#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
 #' ```{r, echo = FALSE}
 #' # For showing images, tables, etc: Use global path
-#' #knitr::spin("code/r-scripts/003-summary-stats-kraken2.R", knit = FALSE)
-#' #file.rename("code/r-scripts/003-summary-stats-kraken2.Rmd", "markdown/003-summary-stats-kraken2.Rmd")
-#' #rmarkdown::render('./markdown/003-summary-stats-kraken2.Rmd', 'html_document',
-#' # knit_root_dir="/home/rakhimov/projects/amplicon_nmr/")
+#' # knitr::spin("code/r-scripts/kraken2-pipeline/003-summary-stats-kraken2.R",
+#' #             knit = FALSE)
+#' # file.rename("code/r-scripts/kraken2-pipeline/003-summary-stats-kraken2.Rmd",
+#' #             "markdown/003-summary-stats-kraken2.Rmd")
+#' # rmarkdown::render('./markdown/003-summary-stats-kraken2.Rmd', 
+#' #                   'html_document',
+#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
 #' ```
 #' 
 #+ echo=FALSE
@@ -78,7 +81,7 @@ ps.q.agg.phylum<-readRDS(file=file.path(
   rdafiles.directory,
   paste(ps.q.agg.phylum.date_time,"phyloseq","kraken2","Phylum",
         "table.rds",sep = "-")))
-# Import metadata
+#' Import metadata
 custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.ages.rds")
 custom.md<-custom.md%>%
   filter(Sample%in%ps.q.agg$Sample, 
@@ -112,8 +115,8 @@ gg.title.groups<-"age groups"
 ### 4.1 Check the total number of unique Species/phyla/families/genera per class. ####
 #' 
 #' ### Check the total number of unique Species/phyla/families/genera per class.
-#' Here, Species are called ASV because the same function is used on 16S rRNA
-#' gene sequencing analysis
+#' Here, Species are called ASV because the same function is used in the 
+#' 16S rRNA gene sequencing analysis.  
 #' We will use it for the summary table in the next section.
 n.species.per.host<-get_n_uniq_taxa_per_host(ps.q.agg,"Species")
 n.phylum.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.phylum,"Phylum")
@@ -181,9 +184,9 @@ head(ps.q.agg.relab)
 ps.q.agg.relab<-add_agegroup_to_tax_df(ps.q.agg.relab,"Species",custom.md)
 ps.q.agg.genus.relab<-add_agegroup_to_tax_df(ps.q.agg.genus.relab,"Genus",custom.md)
 ps.q.agg.family.relab<-add_agegroup_to_tax_df(ps.q.agg.family.relab,"Family",custom.md)
-
+head(ps.q.agg.relab)
 #+ echo=FALSE
-## 8. Rarefy the table and check the percentage of unclassified taxa. ####
+## 7. Rarefy the table and check the percentage of unclassified taxa. ####
 #'
 #' ## Rarefy the table and check the percentage of unclassified taxa. ####
 #' Convert the data frame into wide format: rows are samples and columns
@@ -230,24 +233,24 @@ get_rarefied_table<-function(tax.df,tax.rank,host.classes){
       rename(Abundance=value)%>%
       filter(Abundance!=0)
   }
-  write.table(tax.df.rare,
-              file = file.path(rtables.directory,paste0(
-                paste(
-                  paste(format(Sys.time(),format="%Y%m%d"),
-                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                  "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
-                  paste(host.classes,collapse = '-'),sep = "-"),
-                ".tsv")),
-              row.names = F,
-              sep = "\t")
-  saveRDS(tax.df.rare,
-          file = file.path(rdafiles.directory,paste0(
-            paste(
-              paste(format(Sys.time(),format="%Y%m%d"),
-                    format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-              "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
-              paste(host.classes,collapse = '-'),sep = "-"),
-            ".rds")))
+  # write.table(tax.df.rare,
+  #             file = file.path(rtables.directory,paste0(
+  #               paste(
+  #                 paste(format(Sys.time(),format="%Y%m%d"),
+  #                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+  #                 "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
+  #                 paste(host.classes,collapse = '-'),sep = "-"),
+  #               ".tsv")),
+  #             row.names = F,
+  #             sep = "\t")
+  # saveRDS(tax.df.rare,
+  #         file = file.path(rdafiles.directory,paste0(
+  #           paste(
+  #             paste(format(Sys.time(),format="%Y%m%d"),
+  #                   format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+  #             "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
+  #             paste(host.classes,collapse = '-'),sep = "-"),
+  #           ".rds")))
   return(tax.df.rare)
 }
 
@@ -255,7 +258,7 @@ ps.q.agg.rare<-get_rarefied_table(ps.q.agg,"Species","NMR")
 head(ps.q.agg.rare)
 
 #+ echo=FALSE
-### 8.1 Add relative abundances and taxonomic information to the rarefied dataframe. ####
+### 7.1 Add relative abundances and taxonomic information to the rarefied dataframe. ####
 #' 
 #' ### Add relative abundances and taxonomic information to the rarefied dataframe. 
 #' NMR (Species)
@@ -269,7 +272,7 @@ ps.q.agg.rare.relab<-ps.q.agg.rare.relab%>%
 head(ps.q.agg.rare.relab)
 
 #+ echo=FALSE
-### 8.3 Create a summary stats table for the rarefied dataframe. ####
+### 7.3 Create a summary stats table for the rarefied dataframe. ####
 #' 
 #' ### Create a summary stats table for the rarefied dataframe.
 n.asv.per.host.rare<-get_n_uniq_taxa_per_host(ps.q.agg.rare.relab,"Species")
@@ -286,7 +289,7 @@ summary.stats.table.rare
 summary.stats.table
 
 #+ echo=FALSE
-## 10. Check the most abundant phyla, families, genera in NMR. ####
+## 8. Check the most abundant phyla, families, genera in NMR. ####
 #'
 #' ## Check the most abundant phyla, families, genera in NMR.
 #' Phyla:
@@ -342,6 +345,10 @@ ps.q.agg.dominant.species<-ps.q.agg.relab%>%
   ungroup()
 head(ps.q.agg.dominant.species)
 
+#+ echo=FALSE
+## 8.1 Check the most abundant non-bacterial phyla, families, genera in NMR. ####
+#'
+#' ## Check the most abundant non-bacterial phyla, families, genera in NMR.
 #' Non-bacterial phyla:
 ps.q.agg.dominant.phyla.nonbact<-ps.q.agg.dominant.phyla%>%
   filter(Kingdom != "Bacteria")
@@ -355,63 +362,60 @@ ps.q.agg.dominant.genera.nonbact<-ps.q.agg.dominant.genera%>%
 ps.q.agg.dominant.species.nonbact<-ps.q.agg.dominant.species%>%
   filter(Kingdom != "Bacteria")
 
-write.table(ps.q.agg.dominant.phyla,
-            file=file.path(rtables.directory,
-                           paste("20241003_15_45_51",#paste(format(Sys.time(),format="%Y%m%d"),
-                                 # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-phyla.tsv",sep="-")),
-            row.names = F,sep = "\t")
-
-write.table(ps.q.agg.dominant.phyla.nonbact,
-            file=file.path(rtables.directory,
-                           paste(paste(format(Sys.time(),format="%Y%m%d"),
-                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-phyla-nonbact.tsv",sep="-")),
-            row.names = F,sep = "\t")
-
-write.table(ps.q.agg.dominant.families,
-            file=file.path(rtables.directory,
-                           paste("20241003_15_47_55",#paste(format(Sys.time(),format="%Y%m%d"),
-                           #             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-families.tsv",sep="-")),
-            row.names = F,sep = "\t")
-
-write.table(ps.q.agg.dominant.families.nonbact,
-            file=file.path(rtables.directory,
-                           paste(paste(format(Sys.time(),format="%Y%m%d"),
-                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-families-nonbact.tsv",sep="-")),
-            row.names = F,sep = "\t")
-write.table(ps.q.agg.dominant.genera,
-            file=file.path(rtables.directory,
-                           paste("20241003_15_48_15",#paste(format(Sys.time(),format="%Y%m%d"),
-                                 # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-genera.tsv",sep="-")),
-            row.names = F,sep = "\t")
-write.table(ps.q.agg.dominant.genera.nonbact,
-            file=file.path(rtables.directory,
-                           paste(paste(format(Sys.time(),format="%Y%m%d"),
-                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-genera-nonbact.tsv",sep="-")),
-            row.names = F,sep = "\t")
-write.table(ps.q.agg.dominant.species,
-            file=file.path(rtables.directory,
-                           paste(paste(format(Sys.time(),format="%Y%m%d"),
-                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-species-all.tsv",sep="-")),
-            row.names = F,sep = "\t")
-write.table(ps.q.agg.dominant.species.nonbact,
-            file=file.path(rtables.directory,
-                           paste(paste(format(Sys.time(),format="%Y%m%d"),
-                                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                                 "kraken2","dominant-species-nonbact.tsv",sep="-")),
-            row.names = F,sep = "\t")
-
-
-
+# write.table(ps.q.agg.dominant.phyla,
+#             file=file.path(rtables.directory,
+#                            paste("20241003_15_45_51",#paste(format(Sys.time(),format="%Y%m%d"),
+#                                  # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-phyla.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# 
+# write.table(ps.q.agg.dominant.phyla.nonbact,
+#             file=file.path(rtables.directory,
+#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-phyla-nonbact.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# 
+# write.table(ps.q.agg.dominant.families,
+#             file=file.path(rtables.directory,
+#                            paste("20241003_15_47_55",#paste(format(Sys.time(),format="%Y%m%d"),
+#                            #             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-families.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# 
+# write.table(ps.q.agg.dominant.families.nonbact,
+#             file=file.path(rtables.directory,
+#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-families-nonbact.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# write.table(ps.q.agg.dominant.genera,
+#             file=file.path(rtables.directory,
+#                            paste("20241003_15_48_15",#paste(format(Sys.time(),format="%Y%m%d"),
+#                                  # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-genera.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# write.table(ps.q.agg.dominant.genera.nonbact,
+#             file=file.path(rtables.directory,
+#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-genera-nonbact.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# write.table(ps.q.agg.dominant.species,
+#             file=file.path(rtables.directory,
+#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-species-all.tsv",sep="-")),
+#             row.names = F,sep = "\t")
+# write.table(ps.q.agg.dominant.species.nonbact,
+#             file=file.path(rtables.directory,
+#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                                  "kraken2","dominant-species-nonbact.tsv",sep="-")),
+#             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-## 11. Check how much Bacteroidaceae are in NMR.  ####
+## 9. Check how much Bacteroidaceae are in NMR.  ####
 #'
 #' ## Check how much Bacteroidaceae are in NMR.
 bacteroidaceae.nmr<-ps.q.agg.dominant.families%>%
@@ -425,7 +429,7 @@ bacteroidaceae.nmr
 #             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-### 11.1 Check the most dominant Bacteroidota families in NMR. ####
+### 9.1 Check the most dominant Bacteroidota families in NMR. ####
 #'
 #'### Check the most dominant Bacteroidota families in NMR.
 bacteroidota.nmr<-ps.q.agg.dominant.families%>%
@@ -439,7 +443,7 @@ bacteroidota.nmr
 #             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-## 12. Check Spirochaetaceae, Spirochaetota, and Treponema in NMR. ####
+## 10. Check Spirochaetaceae, Spirochaetota, and Treponema in NMR. ####
 #'
 #' ## Check Spirochaetaceae, Spirochaetota, and Treponema in NMR. 
 spirochaetaceae.nmr<-ps.q.agg.dominant.families%>%
@@ -483,7 +487,7 @@ treponema.nmr.names
 #             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-### 12.1 Check the number of Species in Treponema from NMR. ####
+### 10.1 Check the number of Species in Treponema from NMR. ####
 #' 
 #' ### Check the number of Species in Treponema from NMR.
 ps.q.agg%>%
@@ -493,7 +497,7 @@ ps.q.agg%>%
   tally
 
 #+ echo=FALSE
-## 13. Check Mogibacteriaceae (renamed to Anaerovoracaceae). ####
+## 11. Check Mogibacteriaceae (renamed to Anaerovoracaceae). ####
 #' 
 #' ## Check Mogibacteriaceae (renamed to Anaerovoracaceae).
 mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.dominant.families%>%
@@ -506,7 +510,7 @@ mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.dominant.families%>%
 #             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-## 14. Analyse sulfur-metabolising bacteria in NMR. ####
+## 12. Analyse sulfur-metabolising bacteria in NMR. ####
 #'
 #' ## Analyse sulfur-metabolising bacteria in NMR. 
 #' We don't know where the "sulf" pattern is (Phylum, Order, Genus, or anywhere 
@@ -514,7 +518,8 @@ mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.dominant.families%>%
 #' https://stackoverflow.com/questions/47941680/grepl-across-multiple-specified-columns
 all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
 sulfur.bact.nmr<-
-  ps.q.agg[!!rowSums(sapply(ps.q.agg.relab[,all.ranks], grepl, pattern = "sulf|thio") ),]%>%
+  ps.q.agg[!!rowSums(sapply(ps.q.agg.relab[,all.ranks], grepl, 
+                            pattern = "sulf|thio") ),]%>%
   distinct(OTU,.keep_all = T)%>%
   select(all_of(all.ranks))%>%
   inner_join(ps.q.agg.dominant.species)
@@ -526,10 +531,9 @@ sulfur.bact.nmr<-
 #             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-### 14.2 Plot sulfur metabolising bacteria. ####
+### 12.2 Plot sulfur metabolising bacteria. ####
 #'
 #' ### Plot sulfur metabolising bacteria.
-# Add zero rows
 # ps.q.agg.relab<-ps.q.agg.relab%>%ungroup()
 sulfur.bact.plot<-ps.q.agg.relab%>%
   filter(Species %in% sulfur.bact.nmr$Species)%>%
@@ -569,8 +573,9 @@ sulfur.bact.plot<-ps.q.agg.relab%>%
         legend.position = "right",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank())
-print(sulfur.bact.plot)
-  # ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups"))
+#+ plot.width=11, plot.height=8
+print(sulfur.bact.plot +
+  ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups")))
 # for (image.format in c("png","tiff")){
 #   ggsave(paste0("./images/barplots/",
 #                 paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -579,7 +584,6 @@ print(sulfur.bact.plot)
 #                       sep = "-"),".",image.format),
 #          plot=sulfur.bact.plot,
 #          width=11, height=8,units="in",
-#          # width = 7000,height = 9000, units = "px",
 #          dpi=300,device = image.format)
 # }
 
@@ -629,7 +633,8 @@ treponema.plot<-ps.q.agg.relab%>%
         legend.position = "right",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank())
-
+#+ plot.width=11, plot.height=8
+print(treponema.plot)
 # for (image.format in c("png","tiff")){
 #   ggsave(paste0("./images/barplots/",
 #                 paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -638,14 +643,13 @@ treponema.plot<-ps.q.agg.relab%>%
 #                       sep = "-"),".",image.format),
 #          plot=treponema.plot,
 #          width=11, height=8,units="in",
-#          # width = 7000,height = 9000, units = "px",
 #          dpi=300,device = image.format)
 # }
 
-
-
-
-## Groups 1, 2, and 3 (**Supplementary figure**) ####
+#+ echo=FALSE
+## 13. Groups 1, 2, and 3 (**Supplementary figure**). ####
+#'
+#' ## Groups 1, 2, and 3 (**Supplementary figure**).
 group1.genera<-c("Faecalibacterium",
                  "Roseburia",
                  "Coprococcus",
@@ -686,6 +690,8 @@ group3.genera<-c("Akkermansia",
                  "Oscillospira")
 group3.families<-c("Christensenellaceae")
 
+#' Abundances of group 1 genera (decreased with age and associated with 
+#' healthy aging in humans):
 group1.genera
 group1.genera.plot<-ggplot_species(group1.genera,
                                    ps.q.agg.genus.relab,
@@ -701,7 +707,7 @@ print(group1.genera.plot+
 
 group1.species%in%ps.q.agg.relab$Species # no need to plot
 
-#' Group 2 increased genera
+#' Abundances of group 2 genera (increased with age):
 group2.increased.genera
 group2.increased.genera.plot<-ggplot_species(taxa.to.plot =group2.increased.genera,
                                              tax.df =ps.q.agg.genus.relab,
@@ -715,7 +721,7 @@ group2.increased.genera.plot<-ggplot_species(taxa.to.plot =group2.increased.gene
 print(group2.increased.genera.plot+
         ggtitle(paste0("Relative abundance of Group 2 members increased with age")))
 
-#' Group 2 unhealthy genera
+#' Abundances of group 2 genera (associated with unhealthy aging):
 group2.unhealthy.genera
 group2.unhealthy.genera.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.genera,
                                               tax.df=ps.q.agg.genus.relab,
@@ -729,7 +735,7 @@ group2.unhealthy.genera.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.gener
 print(group2.unhealthy.genera.plot+
   ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
-#' Group 2 unhealthy families
+#' Abundances of group 2 families (associated with unhealthy aging):
 group2.unhealthy.families
 group2.unhealthy.families.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.families,
                                               tax.df=ps.q.agg.family.relab,
@@ -743,7 +749,7 @@ group2.unhealthy.families.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.fam
 print(group2.unhealthy.families.plot+
   ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
-#' Group 2 unhealthy species
+#' Abundances of group 2 species (associated with unhealthy aging):
 group2.unhealthy.species
 group2.unhealthy.species.plot<-ggplot_species(taxa.to.plot =group2.unhealthy.species,
                                              tax.df=ps.q.agg.relab,
@@ -758,7 +764,8 @@ group2.unhealthy.species.plot<-ggplot_species(taxa.to.plot =group2.unhealthy.spe
 print(group2.unhealthy.species.plot+
   ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
-#' Group 3 genera
+#' Abundances of group 3 genera (increased with age and associated with 
+#' healthy aging):
 group3.genera
 group3.genera.plot<-ggplot_species(taxa.to.plot =group3.genera,
                                     tax.df = ps.q.agg.genus.relab,
@@ -772,7 +779,8 @@ group3.genera.plot<-ggplot_species(taxa.to.plot =group3.genera,
 print(group3.genera.plot+
   ggtitle(paste0("Relative abundance of Group 3 members")))
 
-#' Group 3 genera
+#' Abundances of group 3 families (increased with age and associated 
+#' with healthy aging):
 group3.families.plot<-ggplot_species(taxa.to.plot = group3.families,
                                       tax.df = ps.q.agg.family.relab,
                                     tax.rank = "Family",
@@ -785,72 +793,76 @@ group3.families.plot<-ggplot_species(taxa.to.plot = group3.families,
 print(group3.families.plot+
   ggtitle(paste0("Relative abundance of Group 3 members")))
 
-for (image.format in c("png","tiff")){
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group1.genera-nmr",
-                      sep = "-"),".",image.format),
-         plot=group1.genera.plot,
-         width=10, height=7,units="in",
-         dpi=300,device = image.format) # 4 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group2.increased.genera-nmr",
-                      sep = "-"),".",image.format),
-         plot=group2.increased.genera.plot,
-         width=10, height=7,units="in",
-         dpi=300,device = image.format) # 4 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group2.unhealthy.genera-nmr",
-                      sep = "-"),".",image.format),
-         plot=group2.unhealthy.genera.plot,
-         width=10, height=7,units="in",
-         dpi=300,device = image.format) # 7 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group2.unhealthy.families-nmr",
-                      sep = "-"),".",image.format),
-         plot=group2.unhealthy.families.plot,
-         width=10, height=5,units="in",
-         dpi=300,device = image.format)    # 2 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group2.unhealthy.species-nmr",
-                      sep = "-"),".",image.format),
-         plot=group2.unhealthy.species.plot,
-         width=10, height=8,units="in",
-         dpi=300,device = image.format)    # 6 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group3.genera-nmr",
-                      sep = "-"),".",image.format),
-         plot= group3.genera.plot ,
-         width=10, height=8,units="in",
-         dpi=300,device = image.format)    # 5 plots
-  ggsave(paste0("./images/barplots/",
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "group3.families-nmr",
-                      sep = "-"),".",image.format),
-         plot= group3.families.plot ,
-         width=7, height=5,units="in",
-         dpi=300,device = image.format)    # 1 plot
-  
-}
+# for (image.format in c("png","tiff")){
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group1.genera-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=group1.genera.plot,
+#          width=10, height=7,units="in",
+#          dpi=300,device = image.format) # 4 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group2.increased.genera-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=group2.increased.genera.plot,
+#          width=10, height=7,units="in",
+#          dpi=300,device = image.format) # 4 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group2.unhealthy.genera-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=group2.unhealthy.genera.plot,
+#          width=10, height=7,units="in",
+#          dpi=300,device = image.format) # 7 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group2.unhealthy.families-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=group2.unhealthy.families.plot,
+#          width=10, height=5,units="in",
+#          dpi=300,device = image.format)    # 2 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group2.unhealthy.species-nmr",
+#                       sep = "-"),".",image.format),
+#          plot=group2.unhealthy.species.plot,
+#          width=10, height=8,units="in",
+#          dpi=300,device = image.format)    # 6 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group3.genera-nmr",
+#                       sep = "-"),".",image.format),
+#          plot= group3.genera.plot ,
+#          width=10, height=8,units="in",
+#          dpi=300,device = image.format)    # 5 plots
+#   ggsave(paste0("./images/barplots/",
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "group3.families-nmr",
+#                       sep = "-"),".",image.format),
+#          plot= group3.families.plot ,
+#          width=7, height=5,units="in",
+#          dpi=300,device = image.format)    # 1 plot
+#   
+# }
 
-## Analyse each kingdom ####
+#+ echo=FALSE
+## 14. Analyse each kingdom in detail. ####
+#'
+#' ## Analyse each kingdom in detail. 
+#'
 #' Number of bacterial species
 ps.q.agg.dominant.species%>%
   filter(Kingdom=="Bacteria")%>%
   nrow
-# Save the table of bacterial abundances
+#' Save the table of bacterial abundances
 ps.q.agg.bacteria<-ps.q.agg.dominant.species%>%
   ungroup%>%
   filter(Kingdom=="Bacteria")
@@ -861,33 +873,31 @@ ps.q.agg.bacteria<-ps.q.agg.dominant.species%>%
 #                                  "kraken2","bacteria.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-# Non-bacterial species ####
-### 1. Eukaryotes ####
-#### 1.1. How many eukaryotes do we have ####
+#+ echo=FALSE
+### 14.1 Eukaryotes ####
+#'
+#' ### Eukaryotes
+#' How many eukaryotes do we have
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   distinct(Species)%>%
   tally
-
-#### 1.2 Total abundance of eukaryotes in classified data ####
+#' 14.2 Total abundance of eukaryotes in classified data
 ps.q.agg.relab%>%
   ungroup%>%
   filter(Kingdom=="Eukaryota")%>%
   reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
   distinct
-
-#### 1.3 Eukaryotic phyla ####
+#' 14.3 Eukaryotic phyla
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
   tally
-
-#### 1.4 Eukaryotic species that aren't Streptophyta ####
+#' 14.4 Eukaryotic species that aren't Streptophyta
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota",Phylum!="Streptophyta")
-
-# Save the table of eukaryotic abundances
+#' Save the table of eukaryotic abundances
 ps.q.agg.eukaryotes<-ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota")
 # write.table(ps.q.agg.eukaryotes,
@@ -897,32 +907,32 @@ ps.q.agg.eukaryotes<-ps.q.agg.dominant.species.nonbact%>%
 #                                  "kraken2","eukaryotes.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-### 2. Archaea ####
-#### 2.1. How many archaea do we have ####
+#+ echo=FALSE
+### 14.2 Archaea ####
+#'
+#' ### 14.2 Archaea
+#' How many archaea do we have 
 ps.q.agg.dominant.species%>%
   filter(Kingdom=="Archaea")%>%
   distinct(Species)%>%
   tally
-
-#### 2.2 Total abundance of archaea in classified data ####
+#' Total abundance of archaea in classified data
 ps.q.agg.relab%>%
   ungroup%>%
   filter(Kingdom=="Archaea")%>%
   reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
   distinct
-
-#### 2.3 Archaea phyla ####
+#' Archaea phyla
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Archaea")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
   tally
-
-#### 2.4 Archaea species ###
+#' Archaea species 
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Archaea")
 
-# Save the table of archaea abundances
+#' Save the table of archaea abundances
 ps.q.agg.archaea<-ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Archaea")
 # write.table(ps.q.agg.archaea,
@@ -932,34 +942,33 @@ ps.q.agg.archaea<-ps.q.agg.dominant.species.nonbact%>%
 #                                  "kraken2","archaea.tsv",sep="-")),
 #             row.names = F,sep = "\t")
 
-### 3. Viruses ####
-#### 2.1. How many archaea do we have ####
+#+ echo=FALSE
+### 14.3 Viruses ####
+#'
+#' ### 14.3 Viruses
+#' How many viruses do we have
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Viruses")%>%
   distinct(Species)%>%
   tally
-
-#### 2.2 Total abundance of viruses in classified data ####
+#' Total abundance of viruses in classified data
 ps.q.agg.relab%>%
   ungroup%>%
   filter(Kingdom=="Viruses")%>%
   reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
   distinct
-
-#### 2.3 Viral phyla ####
+#' Viral phyla 
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Viruses")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
   tally
-
-#### 2.4 Viral species ###
+#' Viral species
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Viruses")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)
-
-# Save the table of viral abundances
+#' Save the table of viral abundances
 ps.q.agg.viruses<-ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Viruses")
 # write.table(ps.q.agg.viruses,
