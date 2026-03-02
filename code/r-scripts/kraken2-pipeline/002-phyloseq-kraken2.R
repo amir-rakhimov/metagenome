@@ -9,12 +9,12 @@
 #' ```
 #' ```{r, echo = FALSE}
 #' # For showing images, tables, etc: Use global path
-#' #knitr::spin("code/r-scripts/002-phyloseq-kraken2.R", knit = FALSE)
-#' #file.rename("code/r-scripts/002-phyloseq-kraken2.Rmd", 
-#'  "markdown/002-phyloseq-kraken2.Rmd")
-#' #rmarkdown::render('./markdown/002-phyloseq-kraken2.Rmd', 
-#'    'html_document',
-#' # knit_root_dir="/home/rakhimov/projects/metagenome/")
+#' # knitr::spin("code/r-scripts/kraken2-pipeline/002-phyloseq-kraken2.R", knit = FALSE)
+#' # file.rename("code/r-scripts/kraken2-pipeline/002-phyloseq-kraken2.Rmd",
+#' #             "markdown/002-phyloseq-kraken2.Rmd")
+#' # rmarkdown::render('./markdown/002-phyloseq-kraken2.Rmd', 
+#' #                   'html_document',
+#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
 #' ```
 #' 
 #+ echo=FALSE
@@ -25,8 +25,8 @@
 ## Introduction ####
 #'
 #' ## Introduction
-#' In this script, we will import the dataset from Kraken2 (using 
-#' phyloseq).
+#' In this script, we will import the dataset from Kraken2 using 
+#' phyloseq.
 #' 
 
 #+ echo=FALSE
@@ -113,7 +113,7 @@ df.taxa$Genus<-
   gsub("d__|p__|c__|o__|f__|g__","",df.taxa$Genus)
 df.taxa$Species<-
   gsub("d__|p__|c__|o__|f__|g__|s__","",df.taxa$Species)
-
+head(df.taxa)
 #+ echo=FALSE
 ## 3. Convert into phyloseq taxonomyTable object. ####
 #'
