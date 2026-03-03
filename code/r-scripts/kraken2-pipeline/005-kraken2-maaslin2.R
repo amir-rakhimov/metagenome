@@ -7,15 +7,6 @@
 #' ```{r, setup 007-diffabund-tests.R, include=FALSE}
 #' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
-#' ```{r, echo = FALSE}
-#' # For showing images, tables, etc: Use global path
-#' # knitr::spin("code/r-scripts/kraken2-pipeline/005-kraken2-maaslin2.R", knit = FALSE)
-#' # file.rename("code/r-scripts/kraken2-pipeline/005-kraken2-maaslin2.Rmd",
-#' #             "markdown/005-kraken2-maaslin2.Rmd")
-#' # rmarkdown::render('./markdown/005-kraken2-maaslin2.Rmd', 
-#' #                   'html_document',
-#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
-#' ```
 #+ echo=FALSE
 # Differential microbial abundance tests with MaAsLin2 ####
 #' # Differential microbial abundance tests with MaAsLin2

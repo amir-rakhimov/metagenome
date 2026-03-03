@@ -7,15 +7,6 @@
 #' ```{r, setup 002-phyloseq-kraken2.R, include=FALSE}
 #' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
-#' ```{r, echo = FALSE}
-#' # For showing images, tables, etc: Use global path
-#' # knitr::spin("code/r-scripts/kraken2-pipeline/002-phyloseq-kraken2.R", knit = FALSE)
-#' # file.rename("code/r-scripts/kraken2-pipeline/002-phyloseq-kraken2.Rmd",
-#' #             "markdown/002-phyloseq-kraken2.Rmd")
-#' # rmarkdown::render('./markdown/002-phyloseq-kraken2.Rmd', 
-#' #                   'html_document',
-#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
-#' ```
 #' 
 #+ echo=FALSE
 # Convert Kraken2 output into a phyloseq object ####

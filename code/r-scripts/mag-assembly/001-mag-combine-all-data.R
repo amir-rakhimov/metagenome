@@ -7,16 +7,6 @@
 #' ```{r, setup 001-mag-combine-all-data.R, include=FALSE}
 #' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
-#' ```{r, echo = FALSE}
-#' # For showing images, tables, etc: Use global path
-#' # knitr::spin("code/r-scripts/mag-assembly/001-mag-combine-all-data.R", 
-#' #             knit = FALSE)
-#' # file.rename("code/r-scripts/mag-assembly/001-mag-combine-all-data.Rmd", 
-#' #             "markdown/001-mag-combine-all-data.Rmd")
-#' # rmarkdown::render('./markdown/001-mag-combine-all-data.Rmd', 
-#' #                   'html_document',
-#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
-#' ```
 #' # Metagenome assembly analysis {-}
 #+ echo=FALSE
 # Combine all the data from MAG assembly ####

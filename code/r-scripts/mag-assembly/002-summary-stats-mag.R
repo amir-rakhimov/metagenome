@@ -7,16 +7,6 @@
 #' ```{r, setup 002-summary-stats-mag.R, include=FALSE}
 #' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
-#' ```{r, echo = FALSE}
-#' # For showing images, tables, etc: Use global path
-#' # knitr::spin("code/r-scripts/mag-assembly/002-summary-stats-mag.R", 
-#' #             knit = FALSE)
-#' # file.rename("code/r-scripts/mag-assembly/002-summary-stats-mag.Rmd", 
-#' #             "markdown/002-summary-stats-mag.Rmd")
-#' # rmarkdown::render('./markdown/002-summary-stats-mag.Rmd', 
-#' #                   'html_document',
-#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
-#' ```
 #+ echo=FALSE
 # Analysing MAG data. ####
 #' # Analysing MAG data.
