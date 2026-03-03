@@ -1,18 +1,51 @@
+#' ---
+#' output: 
+#'   bookdown::html_document2:
+#'      toc: true
+#' ---
+
+#' ```{r, setup 003-mag-taxonomy-plots.R, include=FALSE}
+#' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
+#' ```
+#+ echo=FALSE
+# MAG taxonomy barplots. ####
+#' # MAG taxonomy barplots.
+#'
+#+ echo=FALSE
+## Introduction ####
+#'
+#' ## Introduction
+#' Plot taxonomy barplots from GTDB-tk and BLAST.
+#' 
+#+ echo=FALSE
+## 1. Load necessary libraries. ####
+#'
+#' ## Load necessary libraries.
+# install.packages(c("tidyverse","Polychrome","ggtext"))
 library(tidyverse)
 library(Polychrome)
 library(ggtext)
-
+#+ echo=FALSE
+## 2. Import datasets. ####
+#'
+#' ## Import datasets.
+#' Seqkit statistics on every contig and bin with taxonomy classification and
+#' relative abudnance from CoverM:
 seqkit.with_taxonomy<-readRDS(file = "./output/rdafiles/seqkit-with_taxonomy.rds")
+#' Taxonomy classification of each bin from dRep
 gtdbtk.coverm.drep<-readRDS(file = "./output/rdafiles/gtdbtk-coverm-drep.rds")
+#' Taxonomy classification of each bin from MetaBAT2
 gtdbtk.coverm.metabat2<-readRDS(file = "./output/rdafiles/gtdbtk-coverm-metabat2.rds")
+#' Taxonomy classification of each contig from BLASTN
 blastn.coverm.megahit<-readRDS(file = "./output/rdafiles/blastn-coverm-megahit.rds")
+#' Tidy taxonomy table
 gtdbtk.taxonomy<-readRDS("./output/rdafiles/gtdbtk-taxonomy.rds")
 gene.annotation.df<-readRDS(file="./output/rdafiles/gene-annotation-df.rds")
-
-barplot.directory<-"./images/barplots/" # set the path where barplots will
-boxplot.directory<-"./images/boxplots/" # set the path where boxplots will
+#' Output paths
+barplot.directory<-"./images/barplots/" 
+boxplot.directory<-"./images/boxplots/" 
 image.formats<-c("png","tiff")
-
+#' Add CheckM2 quality information for all MAGs:
 metabat2.date_time<-"20250612_13_37_47"
 checkm2.high_quality_mags<-read.table("./output/mag_assembly/checkm2_output/20250619_05_47_09_high_quality_mags.tsv",
                                       sep="\t",header = T)%>%
@@ -21,10 +54,13 @@ checkm2.high_quality_mags<-read.table("./output/mag_assembly/checkm2_output/2025
   mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome))%>%
   separate_wider_delim(genome,delim = "_bin.",names = c("sample","bin_id"))%>%
   mutate(bin_id=as.integer(bin_id))
-
-# Basic taxonomy barplot (GTDB-tk) (**Figure 5**) ####
+#+ echo=FALSE
+## 3. Taxonomy barplots (GTDB-tk) (**Figure 5**). ####
+#'
+#' ## Taxonomy barplots (GTDB-tk) (**Figure 5**).
+#' Prepare the dRep classification dataset for plotting: hide rare taxa,
+#' italicise names, highlight non-bacterial species in the legend.
 avg.taxon.len <- round(mean(nchar(gtdbtk.coverm.drep$classification)))
-
 gtdbtk.coverm.drep.for_plot<-gtdbtk.coverm.drep%>%
   group_by(classification)%>%
   mutate(mean_relab=mean(relative_abundance))%>%
@@ -52,14 +88,14 @@ gtdbtk.coverm.drep.for_plot<-gtdbtk.coverm.drep%>%
   mutate(taxon=fct_relevel(taxon,
                                     "Remainder (mean relative abundance < 0.7%)",
                                     after = 0))
-# Color palette is used for all plots
+#' Generate a color palette.
 set.seed(1)
 plot.cols<-createPalette(length(levels(unique(gtdbtk.coverm.drep.for_plot$taxon))),
                          seedcolors =rainbow(7))# input: number of rows
 
 plot.cols<-c("#C1CDCD",plot.cols[1:length(plot.cols)-1])
 col.vec<-setNames(plot.cols,levels(gtdbtk.coverm.drep.for_plot$taxon))
-
+#' The barplot:
 gtdbtk.coverm.drep.plot<-gtdbtk.coverm.drep.for_plot%>%
   ggplot(aes(x=sample,y=relative_abundance,fill=taxon))+
   geom_bar(stat="identity")+
@@ -70,7 +106,6 @@ gtdbtk.coverm.drep.plot<-gtdbtk.coverm.drep.for_plot%>%
   coord_cartesian(expand=FALSE) +
   labs(x="",
        y="Relative Abundance (%)",
-       # title="Relative abundances of representative MAGs",
        fill="Classification"
        )+
   theme(axis.text.x = element_text(size=13),
@@ -85,9 +120,12 @@ gtdbtk.coverm.drep.plot<-gtdbtk.coverm.drep.for_plot%>%
         legend.position = "right",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank())
+#+ fig.height=5.5, fig.width=11
+print(gtdbtk.coverm.drep.plot + 
+        ggtitle("Relative abundances of representative MAGs"))
 
-#
-
+#' MetaBAT2 classification plot wasn't included in the paper, so we leave it
+#' as it is
 gtdbtk.coverm.metabat2.for_plot<-gtdbtk.coverm.metabat2%>%
   group_by(classification)%>%
   mutate(mean_relab=mean(relative_abundance))%>%
@@ -123,7 +161,6 @@ gtdbtk.coverm.metabat2.plot<-gtdbtk.coverm.metabat2.for_plot%>%
   coord_cartesian(expand=FALSE) +
   labs(x="",
        y="Relative Abundance (%)",
-       # title="Relative abundances of all high-quality MAGs (representative + redundant)",
        fill="Classification")+
   theme(#plot.margin=unit(c(1,1,1,1.5), 'cm'),
         axis.text.x = element_text(size=13),
@@ -138,8 +175,15 @@ gtdbtk.coverm.metabat2.plot<-gtdbtk.coverm.metabat2.for_plot%>%
         legend.position = "right",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank()) 
+#+ fig.height=7, fig.width=11
+print(gtdbtk.coverm.metabat2.plot +
+        ggtitle("Relative abundances of all high-quality MAGs (representative + redundant)"))
 
-## Taxonomy barplot BLASTN (**Figure 5b**) ####
+#+ echo=FALSE
+## 4. Taxonomy barplots (BLASTN) (**Figure 5**). ####
+#'
+#' ## Taxonomy barplots (BLASTN) (**Figure 5**).
+#' Prepare the dataset in a similar manner to previous plots:
 blastn.coverm.megahit.for_plot<-blastn.coverm.megahit%>%
   filter(grepl("Eukaryota",classification))%>%
   mutate(classification = str_extract(classification, "[^;]+;[^;]+;[^;]+$"))%>%
@@ -180,49 +224,45 @@ blastn.coverm.megahit.plot<-blastn.coverm.megahit.for_plot%>%
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
         legend.position = "right") # legend on the right
+#+ fig.height=5, fig.width=11
+print(blastn.coverm.megahit.plot + 
+        ggtitle("Classification of eukaryotic contigs with BLASTN"))
+# for(image.format in image.formats){
+#   ggsave(paste0(barplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "gtdbtk-coverm-drep-barplot",
+#                       sep = "-"),".",image.format),
+#          plot=gtdbtk.coverm.drep.plot,
+#          width=11, height=5.5,units="in",
+#          # width = 5000,height = 2200, units = "px",
+#          dpi=300,device = image.format)
+#   
+#   ggsave(paste0(barplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "gtdbtk-coverm-metabat2-barplot",
+#                       sep = "-"),".",image.format),
+#          plot=gtdbtk.coverm.metabat2.plot,
+#          width=11, height=7,units="in",
+#          # width = 5000,height = 2200, units = "px",
+#          dpi=300,device = image.format)
+#   ggsave(paste0(barplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "blastn-coverm-megahit-barplot",
+#                       sep = "-"),".",image.format),
+#          plot=blastn.coverm.megahit.plot,
+#          width=11, height=5,units="in",
+#          # width = 5000,height = 2200,units = "px",
+#          dpi=300,device = image.format)
+# }
 
-for(image.format in image.formats){
-  ggsave(paste0(barplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "gtdbtk-coverm-drep-barplot",
-                      sep = "-"),".",image.format),
-         plot=gtdbtk.coverm.drep.plot,
-         width=11, height=5.5,units="in",
-         # width = 5000,height = 2200, units = "px",
-         dpi=300,device = image.format)
-  
-  ggsave(paste0(barplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "gtdbtk-coverm-metabat2-barplot",
-                      sep = "-"),".",image.format),
-         plot=gtdbtk.coverm.metabat2.plot,
-         width=11, height=7,units="in",
-         # width = 5000,height = 2200, units = "px",
-         dpi=300,device = image.format)
-  ggsave(paste0(barplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "blastn-coverm-megahit-barplot",
-                      sep = "-"),".",image.format),
-         plot=blastn.coverm.megahit.plot,
-         width=11, height=5,units="in",
-         # width = 5000,height = 2200,units = "px",
-         dpi=300,device = image.format)
-}
-
-
-## Taxa with most unique genes ####
-seqkit.with_taxonomy.with_genes%>%
-  distinct(locus_tag_cluster,.keep_all = T)%>%
-  add_count(sample,bin_id,name = "n_genes")%>% # count locus_tag_cluster
-  ungroup%>%
-  select(sample,bin_id,n_genes,gtdbtk_result)%>%
-  distinct()%>%
-  arrange(-n_genes)
-
-mag.stats.with_annotation.df<-seqkit.with_taxonomy%>%
+#+ echo=FALSE
+## 5. Plot MAG genome sizes. ####
+#'
+#' ## Plot MAG genome sizes. 
+mag.genome.sizes.plot<-seqkit.with_taxonomy%>%
   filter(is_drep_bin)%>%
   select(sample,contig_id,bin_id,contig_length,secondary_cluster,GC)%>%
   filter(!is.na(secondary_cluster))%>%
@@ -231,30 +271,8 @@ mag.stats.with_annotation.df<-seqkit.with_taxonomy%>%
          mag_gc=mean(GC),
          n_contig=n_distinct(contig_id))%>%
   ungroup%>%
-  full_join(gene.annotation.df[,c("locus_tag_cluster","locus_tag","sample","contig_id",
-                                  "gene_length","gene_type")])%>%
-  filter(!is.na(secondary_cluster))%>%
-  group_by(secondary_cluster)%>%
-  mutate(n_cds = n_distinct(locus_tag,na.rm = T)) %>% # add gene annotations
-  ungroup%>%
   distinct(secondary_cluster,.keep_all = T)%>%
-  select(-contig_length,-contig_id,-GC)%>%
-  left_join(checkm2.high_quality_mags)%>%
-  select(-locus_tag_cluster, -locus_tag,-gene_length,-gene_type,
-         -Completeness_Model_Used, -Translation_Table_Used,
-         -Genome_Size,-GC_Content,-Additional_Notes)%>%
   left_join(gtdbtk.taxonomy)%>%
-  arrange(secondary_cluster)
-
-
-write.table(mag.stats.with_annotation.df,
-            file="./output/rtables/mag-stats-with-n_cds.tsv",
-            sep = "\t", row.names = F)
-
-
-
-# MAG genome sizes ####
-mag.genome.sizes.plot<-mag.stats.with_annotation.df%>%
   group_by(Phylum)%>%
   mutate(median_genome_size_mbp=median(genome_size_mbp))%>%
   ungroup%>%
@@ -278,18 +296,33 @@ mag.genome.sizes.plot<-mag.stats.with_annotation.df%>%
         plot.caption = element_text(size=13), # size of plot caption
         legend.title = element_text(size = 15) # size of legend title
   )
-for(image.format in image.formats){
-  ggsave(filename = paste0("./images/boxplots/gtdbtk-mag-genome-sizes.",image.format),
-         dpi =300,
-         width=10, height=7,units="in",
-         # width = 4000, height = 2000,units="px",
-         mag.genome.sizes.plot,
-         device = image.format)
-}
+#+ fig.height=7, fig.width=10
+print(mag.genome.sizes.plot + 
+        ggtitle ("MAG genome sizes"))
+# for(image.format in image.formats){
+#   ggsave(filename = paste0("./images/boxplots/gtdbtk-mag-genome-sizes.",image.format),
+#          dpi =300,
+#          width=10, height=7,units="in",
+#          # width = 4000, height = 2000,units="px",
+#          mag.genome.sizes.plot,
+#          device = image.format)
+# }
 
-# GC% in MAGs (**My Figure 3**) ####
-## Boxplot ####
-mag.gc.plot<-mag.stats.with_annotation.df%>%
+#+ echo=FALSE
+## 6. Plot MAG GC%. ####
+#'
+#' ## Plot MAG GC%. 
+mag.gc.plot<-seqkit.with_taxonomy%>%
+  filter(is_drep_bin)%>%
+  select(sample,contig_id,bin_id,contig_length,secondary_cluster,GC)%>%
+  filter(!is.na(secondary_cluster))%>%
+  group_by(secondary_cluster)%>%
+  mutate(genome_size_mbp=sum(contig_length)/10^6,
+         mag_gc=mean(GC),
+         n_contig=n_distinct(contig_id))%>%
+  ungroup%>%
+  distinct(secondary_cluster,.keep_all = T)%>%
+  left_join(gtdbtk.taxonomy)%>%
   group_by(Phylum)%>%
   mutate(median_gc=median(mag_gc))%>%
   ungroup%>%
@@ -300,9 +333,7 @@ mag.gc.plot<-mag.stats.with_annotation.df%>%
   geom_boxplot()+
   geom_jitter()+
   theme_bw()+
-  labs(y="GC%"#,
-       # title="MAG GC%",
-       )+
+  labs(y="GC%")+
   theme(
     plot.margin = unit(c(0.2,0.2,0.2,0.5), "cm"),
         axis.text.x = element_text(angle=45,size=14,hjust=1),# rotate 
@@ -315,17 +346,22 @@ mag.gc.plot<-mag.stats.with_annotation.df%>%
         plot.caption = element_text(size=13), # size of plot caption
         legend.title = element_text(size = 15) # size of legend title
   )
-for(image.format in image.formats){
-  ggsave(filename = paste0("./images/boxplots/gtdbtk-mag-gc.",image.format),
-         dpi =300,
-         width=8, height=7,units="in",
-         # width = 4000, height = 2000, units="px",
-         mag.gc.plot,
-         device = image.format)
-}
+#+ fig.height=7, fig.width=8
+print(mag.gc.plot + 
+        ggtitle("MAG GC%"))
+# for(image.format in image.formats){
+#   ggsave(filename = paste0("./images/boxplots/gtdbtk-mag-gc.",image.format),
+#          dpi =300,
+#          width=8, height=7,units="in",
+#          mag.gc.plot,
+#          device = image.format)
+# }
 
 
-## GC stats ####
+#+ echo=FALSE
+### 6.1 GC% in detail. ####
+#'
+#' ### GC% in detail.
 seqkit.with_taxonomy%>%
   filter(is_drep_bin)%>%
   select(sample,contig_id,bin_id,contig_length,secondary_cluster,GC)%>%
@@ -345,9 +381,7 @@ seqkit.with_taxonomy%>%
   distinct(Phylum,min_gc,max_gc,mean_gc,sd_gc,n)%>%
   arrange(-mean_gc)
 
-
-
-# GC% in BLASTN ####
+#' GC% in BLASTN.
 blastn.coverm.megahit.eukaryotes.gc.plot<-blastn.coverm.megahit%>%
   filter(grepl("Eukaryota",classification))%>%
   left_join(seqkit.with_taxonomy[,c("sample","contig_id","GC")])%>%
@@ -355,7 +389,6 @@ blastn.coverm.megahit.eukaryotes.gc.plot<-blastn.coverm.megahit%>%
   mutate(classification=sub(".*;[^;]*;([^;]*;[^;]*)$", "\\1", classification))%>%
   separate_wider_delim(delim = ";",cols=classification,
                        names=c("Genus","Species"))%>%
-  # group_by(Genus)%>%
   select(sample,contig_id,GC,Genus)%>%
   arrange(-GC)%>%
   mutate(Genus=factor(Genus,levels=unique(Genus)))%>%
@@ -363,9 +396,7 @@ blastn.coverm.megahit.eukaryotes.gc.plot<-blastn.coverm.megahit%>%
   geom_boxplot()+
   geom_jitter()+
   theme_bw()+
-  labs(y="Contig GC %"#,
-       # title="GC% of eukaryotic contigs identified by BLASTN"
-       )+
+  labs(y="Contig GC %")+
   theme(axis.text.x = element_text(angle=45,size=12,hjust=1),
         axis.text.y = element_text(size=12), # size of y axis ticks
         axis.title = element_text(size = 14), # size of axis names
@@ -376,17 +407,20 @@ blastn.coverm.megahit.eukaryotes.gc.plot<-blastn.coverm.megahit%>%
         panel.grid.major = element_blank(),
         legend.title = element_text(size = 10), # size of legend title
         legend.position = "right") # legend on the right
-
-for(image.format in image.formats){
-  ggsave(paste0(boxplot.directory,
-                paste(paste(format(Sys.time(),format="%Y%m%d"),
-                            format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-                      "blastn-coverm-megahit-eukaryotes-gc-boxplot",
-                      sep = "-"),".",image.format),
-         plot=blastn.coverm.megahit.eukaryotes.gc.plot,
-         width=8, height=6,units="in",
-         # width = 4500,height = 2000, units = "px",
-         dpi=300,device = image.format)
-}
-
-
+#+ fig.height=6, fig.width=8
+print(blastn.coverm.megahit.eukaryotes.gc.plot + 
+        ggtitle("GC% of eukaryotic contigs identified by BLASTN"))
+# for(image.format in image.formats){
+#   ggsave(paste0(boxplot.directory,
+#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
+#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
+#                       "blastn-coverm-megahit-eukaryotes-gc-boxplot",
+#                       sep = "-"),".",image.format),
+#          plot=blastn.coverm.megahit.eukaryotes.gc.plot,
+#          width=8, height=6,units="in",
+#          # width = 4500,height = 2000, units = "px",
+#          dpi=300,device = image.format)
+# }
+sessionInfo()
+rm(list = ls(all=TRUE))
+gc()
