@@ -7,27 +7,17 @@
 #' ```{r, setup 003-summary-stats-kraken2.R, include=FALSE}
 #' knitr::opts_knit$set(root.dir = '/home/rakhimov/projects/metagenome')
 #' ```
-#' ```{r, echo = FALSE}
-#' # For showing images, tables, etc: Use global path
-#' # knitr::spin("code/r-scripts/kraken2-pipeline/003-summary-stats-kraken2.R",
-#' #             knit = FALSE)
-#' # file.rename("code/r-scripts/kraken2-pipeline/003-summary-stats-kraken2.Rmd",
-#' #             "markdown/003-summary-stats-kraken2.Rmd")
-#' # rmarkdown::render('./markdown/003-summary-stats-kraken2.Rmd', 
-#' #                   'html_document',
-#' #                   knit_root_dir="/home/rakhimov/projects/metagenome/")
-#' ```
 #' 
 #+ echo=FALSE
-# Analysing phyloseq data (Kraken2) ####
-#' # Analysing phyloseq data (Kraken2)
+# Analysing Kraken2 data with phyloseq. ####
+#' # Analysing Kraken2 data with phyloseq. 
 #' 
 #+ echo=FALSE
 ## Introduction ####
 #'
 #' ## Introduction
-#' In this script, we will explore the imported dataset from QIIME2 (using 
-#' phyloseq).
+#' In this script, we will explore the imported dataset from Kraken2 using 
+#' phyloseq.
 #' 
 #' We will use the data from 002-phyloseq-kraken2.R script (ps.q.agg
 #' agglomerated tables at phylum, family, genus, and Species level).
@@ -575,7 +565,18 @@ sulfur.bact.plot<-ps.q.agg.relab%>%
         panel.grid.major = element_blank())
 #+ plot.width=11, plot.height=8
 print(sulfur.bact.plot +
-  ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups")))
+        theme(axis.title.y = element_text(size = 5),
+              axis.title = element_text(size = 5),
+              axis.text.y = ggtext::element_markdown(size=5),
+              axis.text.x = element_text(size=6, angle=45, hjust=1),
+              strip.text.x = ggtext::element_markdown(size=5),
+              plot.title = element_text(size = 5),
+              legend.text = element_text(size = 5),
+              legend.title = element_text(size = 5),
+              legend.position = "right",
+              panel.grid.minor = element_blank(),
+              panel.grid.major = element_blank())+
+        ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups")))
 # for (image.format in c("png","tiff")){
 #   ggsave(paste0("./images/barplots/",
 #                 paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -634,7 +635,19 @@ treponema.plot<-ps.q.agg.relab%>%
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank())
 #+ plot.width=11, plot.height=8
-print(treponema.plot)
+print(treponema.plot+
+        theme(axis.title.y = element_text(size = 5),
+              axis.title = element_text(size = 5),
+              axis.text.y = ggtext::element_markdown(size=5),
+              axis.text.x = element_text(size=6, angle=45, hjust=1),
+              strip.text.x = ggtext::element_markdown(size=5),
+              plot.title = element_text(size = 5),
+              legend.text = element_text(size = 5),
+              legend.title = element_text(size = 5),
+              legend.position = "right",
+              panel.grid.minor = element_blank(),
+              panel.grid.major = element_blank())+
+        ggtitle(paste0("Relative abundance of Treponemas in naked mole-rats")))
 # for (image.format in c("png","tiff")){
 #   ggsave(paste0("./images/barplots/",
 #                 paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -703,6 +716,7 @@ group1.genera.plot<-ggplot_species(group1.genera,
                                    ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group1.genera.plot+
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 1 members"))) # 4 plots
 
 group1.species%in%ps.q.agg.relab$Species # no need to plot
@@ -719,6 +733,7 @@ group2.increased.genera.plot<-ggplot_species(taxa.to.plot =group2.increased.gene
                                              ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group2.increased.genera.plot+
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 2 members increased with age")))
 
 #' Abundances of group 2 genera (associated with unhealthy aging):
@@ -731,8 +746,9 @@ group2.unhealthy.genera.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.gener
                                               grouping.variable = "agegroup",
                                               metadata.df = custom.md,
                                               ggplot.fill.name = gg.labs.name)
-#+ plot.width=10, plot.height=7
+#+ plot.width=10, plot.height=10
 print(group2.unhealthy.genera.plot+
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
   ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 2 families (associated with unhealthy aging):
@@ -747,7 +763,8 @@ group2.unhealthy.families.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.fam
                                               ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group2.unhealthy.families.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 2 species (associated with unhealthy aging):
 group2.unhealthy.species
@@ -762,7 +779,8 @@ group2.unhealthy.species.plot<-ggplot_species(taxa.to.plot =group2.unhealthy.spe
 
 #+ plot.width=10, plot.height=7
 print(group2.unhealthy.species.plot+
-  ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 3 genera (increased with age and associated with 
 #' healthy aging):
@@ -777,7 +795,8 @@ group3.genera.plot<-ggplot_species(taxa.to.plot =group3.genera,
                                     ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group3.genera.plot+
-  ggtitle(paste0("Relative abundance of Group 3 members")))
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        ggtitle(paste0("Relative abundance of Group 3 members")))
 
 #' Abundances of group 3 families (increased with age and associated 
 #' with healthy aging):
@@ -791,7 +810,8 @@ group3.families.plot<-ggplot_species(taxa.to.plot = group3.families,
                                     ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group3.families.plot+
-  ggtitle(paste0("Relative abundance of Group 3 members")))
+        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        ggtitle(paste0("Relative abundance of Group 3 members")))
 
 # for (image.format in c("png","tiff")){
 #   ggsave(paste0("./images/barplots/",
