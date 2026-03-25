@@ -38,8 +38,6 @@ source("../amplicon_nmr/code/r-scripts/add_relab_to_tax_df.R")
 source("../amplicon_nmr/code/r-scripts/add_agegroup_to_tax_df.R")
 source("../amplicon_nmr/code/r-scripts/get_unclassified_summary_stats.R")
 source("../amplicon_nmr/code/r-scripts/ggplot_species.R")
-###
-source("../amplicon_nmr/code/r-scripts/get_dominant_taxa_in_host.R")
 #+ echo=FALSE
 ## 2. Specifying parameters and directory/file names. #### 
 #'
@@ -117,18 +115,18 @@ n.genus.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.genus,"Genus")
 #'
 #' ### Create a summary table.
 #' The columns are:  
-#' * Total reads  
-#' * Library size (mean Abundance ± SD)  
-#' * Num of Species per host  
-#' * Num of phyla per host  
-#' * Num of families per host  
-#' * Num of genera per host  
+#' - Total reads  
+#' - Library size (mean Abundance ± SD)  
+#' - Number of Species  
+#' - Number of phyla  
+#' - Number of families  
+#' - Number of genera  
 summary.stats.table<-create_summary_stats_table(ps.q.agg,
                                           n.asv.table = n.species.per.host,
                                           n.phylum.table = n.phylum.per.host,
                                           n.family.table = n.family.per.host,
                                           n.genus.table = n.genus.per.host)
-summary.stats.table
+print(summary.stats.table)
 # write.table(summary.stats.table,
 #             file=file.path(rtables.directory,
 #                            paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -251,7 +249,7 @@ head(ps.q.agg.rare)
 ### 7.1 Add relative abundances and taxonomic information to the rarefied dataframe. ####
 #' 
 #' ### Add relative abundances and taxonomic information to the rarefied dataframe. 
-#' NMR (Species)
+#' Species level:
 ps.q.agg.rare.relab<-add_relab_to_tax_df(ps.q.agg.rare,"Species")
 head(ps.q.agg.rare.relab)
 
@@ -295,7 +293,7 @@ ps.q.agg.dominant.phyla<-ps.q.agg.phylum.relab%>%
   ungroup()
 head(ps.q.agg.dominant.phyla)
 
-#' Families
+#' Families:
 ps.q.agg.dominant.families<-ps.q.agg.family.relab%>%
   group_by(class,Family)%>%
   mutate(min=min(RelativeAbundance),
@@ -342,15 +340,19 @@ head(ps.q.agg.dominant.species)
 #' Non-bacterial phyla:
 ps.q.agg.dominant.phyla.nonbact<-ps.q.agg.dominant.phyla%>%
   filter(Kingdom != "Bacteria")
+head(ps.q.agg.dominant.phyla.nonbact)
 #' Non-bacterial families:
 ps.q.agg.dominant.families.nonbact<-ps.q.agg.dominant.families%>%
   filter(Kingdom != "Bacteria")
+head(ps.q.agg.dominant.families.nonbact)
 #' Non-bacterial genera:
 ps.q.agg.dominant.genera.nonbact<-ps.q.agg.dominant.genera%>%
   filter(Kingdom != "Bacteria")
+head(ps.q.agg.dominant.genera.nonbact)
 #' Non-bacterial species:
 ps.q.agg.dominant.species.nonbact<-ps.q.agg.dominant.species%>%
   filter(Kingdom != "Bacteria")
+head(ps.q.agg.dominant.species.nonbact)
 
 # write.table(ps.q.agg.dominant.phyla,
 #             file=file.path(rtables.directory,
@@ -492,6 +494,7 @@ ps.q.agg%>%
 #' ## Check Mogibacteriaceae (renamed to Anaerovoracaceae).
 mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.dominant.families%>%
   filter(Family=="Anaerovoracaceae")
+mogibacteriaceae_anaerovoracaceae.all
 # write.table(mogibacteriaceae_anaerovoracaceae.all,
 #             file=file.path(rtables.directory,
 #                            paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -513,6 +516,7 @@ sulfur.bact.nmr<-
   distinct(OTU,.keep_all = T)%>%
   select(all_of(all.ranks))%>%
   inner_join(ps.q.agg.dominant.species)
+head(sulfur.bact.nmr)
 # write.table(sulfur.bact.nmr,
 #             file=file.path(rtables.directory,
 #                            paste(paste(format(Sys.time(),format="%Y%m%d"),
@@ -569,10 +573,10 @@ print(sulfur.bact.plot +
               axis.title = element_text(size = 5),
               axis.text.y = ggtext::element_markdown(size=5),
               axis.text.x = element_text(size=6, angle=45, hjust=1),
-              strip.text.x = ggtext::element_markdown(size=5),
-              plot.title = element_text(size = 5),
-              legend.text = element_text(size = 5),
-              legend.title = element_text(size = 5),
+              strip.text.x = ggtext::element_markdown(size=6),
+              plot.title = element_text(size = 10),
+              legend.text = element_text(size = 8),
+              legend.title = element_text(size = 10),
               legend.position = "right",
               panel.grid.minor = element_blank(),
               panel.grid.major = element_blank())+
@@ -640,10 +644,10 @@ print(treponema.plot+
               axis.title = element_text(size = 5),
               axis.text.y = ggtext::element_markdown(size=5),
               axis.text.x = element_text(size=6, angle=45, hjust=1),
-              strip.text.x = ggtext::element_markdown(size=5),
-              plot.title = element_text(size = 5),
-              legend.text = element_text(size = 5),
-              legend.title = element_text(size = 5),
+              strip.text.x = ggtext::element_markdown(size=8),
+              plot.title = element_text(size = 10),
+              legend.text = element_text(size = 8),
+              legend.title = element_text(size = 10),
               legend.position = "right",
               panel.grid.minor = element_blank(),
               panel.grid.major = element_blank())+
@@ -733,7 +737,8 @@ group2.increased.genera.plot<-ggplot_species(taxa.to.plot =group2.increased.gene
                                              ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group2.increased.genera.plot+
-        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        theme(plot.title = element_text(size = 13),
+              axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 2 members increased with age")))
 
 #' Abundances of group 2 genera (associated with unhealthy aging):
@@ -748,7 +753,8 @@ group2.unhealthy.genera.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.gener
                                               ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=10
 print(group2.unhealthy.genera.plot+
-        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        theme(plot.title = element_text(size = 13),
+              axis.text.x = element_text(size=6, angle=45, hjust=1))+
   ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 2 families (associated with unhealthy aging):
@@ -763,7 +769,8 @@ group2.unhealthy.families.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.fam
                                               ggplot.fill.name = gg.labs.name)
 #+ plot.width=10, plot.height=7
 print(group2.unhealthy.families.plot+
-        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        theme(plot.title = element_text(size = 13),
+              axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 2 species (associated with unhealthy aging):
@@ -779,7 +786,8 @@ group2.unhealthy.species.plot<-ggplot_species(taxa.to.plot =group2.unhealthy.spe
 
 #+ plot.width=10, plot.height=7
 print(group2.unhealthy.species.plot+
-        theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
+        theme(plot.title = element_text(size = 13),
+              axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 2 members associated with unhealthy aging")))
 
 #' Abundances of group 3 genera (increased with age and associated with 
@@ -902,19 +910,19 @@ ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   distinct(Species)%>%
   tally
-#' 14.2 Total abundance of eukaryotes in classified data
+#' Total abundance of eukaryotes in classified data
 ps.q.agg.relab%>%
   ungroup%>%
   filter(Kingdom=="Eukaryota")%>%
   reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
   distinct
-#' 14.3 Eukaryotic phyla
+#' Eukaryotic phyla
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
   tally
-#' 14.4 Eukaryotic species that aren't Streptophyta
+#' Eukaryotic species that aren't Streptophyta
 ps.q.agg.dominant.species.nonbact%>%
   filter(Kingdom=="Eukaryota",Phylum!="Streptophyta")
 #' Save the table of eukaryotic abundances

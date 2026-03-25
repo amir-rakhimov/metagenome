@@ -19,8 +19,7 @@
 #' with phyloseq, it's time to explore the taxonomic composition of our data.
 #' We will use the Polychrome package to create a custom palette for the 
 #' barplots.
-
-#' ```
+#' 
 #+ echo=FALSE
 ## 1. Load necessary libraries. ####
 #'

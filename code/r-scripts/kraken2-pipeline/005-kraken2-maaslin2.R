@@ -243,7 +243,7 @@ diff.abund.plot<-ps.q.agg%>%
         axis.text.y = ggtext::element_markdown(size=10),
         axis.text.x = element_text(size=10),
         strip.text.x = ggtext::element_markdown(size=10),
-        plot.title = element_text(size = 17),
+        plot.title = element_text(size = 13),
         legend.text = element_text(size = 10),
         legend.title = element_text(size = 12),
         legend.position = "right",

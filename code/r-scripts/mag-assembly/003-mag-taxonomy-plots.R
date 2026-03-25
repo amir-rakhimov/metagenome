@@ -114,7 +114,7 @@ gtdbtk.coverm.drep.plot<-gtdbtk.coverm.drep.for_plot%>%
         plot.caption = element_text(size=13), # size of plot caption
         legend.title = element_text(size = 15) # size of legend title
   )+
-  theme(plot.title = element_text(size=25), 
+  theme(plot.title = element_text(size=15), 
         panel.spacing = unit(0.8, "cm"), # increase distance between facets
         legend.text = element_markdown(size = 13), # size of legend text
         legend.position = "right",
@@ -169,7 +169,7 @@ gtdbtk.coverm.metabat2.plot<-gtdbtk.coverm.metabat2.for_plot%>%
         plot.caption = element_text(size=13), # size of plot caption
         legend.title = element_text(size = 15) # size of legend title
   )+
-  theme(plot.title = element_text(size=25), 
+  theme(plot.title = element_text(size=15), 
         panel.spacing = unit(0.8, "cm"), # increase distance between facets
         legend.text = element_text(size = 8), # size of legend text
         legend.position = "right",

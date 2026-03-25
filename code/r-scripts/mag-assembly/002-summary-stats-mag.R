@@ -107,7 +107,7 @@ rm(drep.summary.stats)
 rm(metabat2.summary.stats)
 rm(megahit.summary.stats)
 
-#' Number of total bins (MAGs): 128.
+#' Number of representative high-quality bins (MAGs): 128.
 seqkit.with_taxonomy%>%
   filter(is_drep_bin)%>%
   distinct(sample,bin_id)%>%

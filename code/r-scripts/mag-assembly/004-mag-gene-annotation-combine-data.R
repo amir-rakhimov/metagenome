@@ -103,7 +103,7 @@ prokka.contig.gene.map.df%>%
 ## 4. Add gene count data from HTseq. Then, normalise to TPM. ####
 #'
 #' ## Add gene count data from HTseq. Then, normalise to TPM.
-#' Sources: https://metagenomics-workshop.readthedocs.io/en/latest/annotation/quantification.html
+#' Sources: https://metagenomics-workshop.readthedocs.io/en/latest/annotation/quantification.html  
 #' https://github.com/EnvGen/metagenomics-workshop/blob/master/in-house/tpm_table.py
 htseq.gene_counts.df<-data.table::fread(htseq.gene_counts.fname,
                                  header = F,sep="\t")%>%
@@ -149,11 +149,13 @@ gene.annotation.df%>%
 gene.annotation.df<-gene.annotation.df%>%
   full_join(htseq.gene_counts.df,by = join_by(locus_tag))%>%
   filter(!is.na(locus_tag_cluster))
+head(gene.annotation.df)
 #' Find representative gene lengths (clustered or unclustered gene length):
 representative.gene_lengths<-gene.annotation.df%>%
   group_by(locus_tag_cluster)%>%
   select(locus_tag_cluster,locus_tag,gene_length)%>%
   summarise(rep_gene_len=gene_length[locus_tag == locus_tag_cluster][1])
+head(representative.gene_lengths)
 #' Sum counts within each sample:
 tpm.df<-gene.annotation.df%>%
   group_by(sample,locus_tag_cluster)%>%
@@ -167,11 +169,13 @@ tpm.df<-gene.annotation.df%>%
   mutate(T_denom=sum(rgxrl_over_gene_len),
          tpm=(locus_tag_cluster_count*150*10^6) / (rep_gene_len * T_denom))%>%
   ungroup
+head(tpm.df)
 #' Combine gene annotation data with TPM:
 gene.annotation.df<-gene.annotation.df%>%
   left_join(tpm.df[,c("sample","locus_tag_cluster","tpm")],
             by = join_by(sample, locus_tag_cluster))%>%
   select(-raw_count)
+head(gene.annotation.df)
 
 rm(tpm.df)
 rm(prokka.contig.gene.map.df)
@@ -196,7 +200,7 @@ table(kofamscan.df$locus_tag_cluster%in%unique(gene.annotation.df$locus_tag_clus
 ko.defs<-kofamscan.df%>%
   select(ko,ko_definition)%>%
   distinct()
-
+head(ko.defs)
 #+ echo=FALSE
 ## 8. Add dbcan annotation. ####
 #'
@@ -241,15 +245,15 @@ dbcan.df<-dbcan.df%>%
 #' Extract caz_subclass name: at the start of the string, match any character
 #' except ( for one or more times (that's why we add + sign).
 #' Matches a sequence of one or more characters until the first () from the
-#' beginning of the string
-#' mutate(caz_subclass = str_extract(caz, "^[^\\(]+"),
-#'        caz_subclass=gsub("_[0-9]*|_e[0-9]*","",caz_subclass))
-#' CAZ class is caz subclass without numbers at the end. GH1 becomes GH
-
+#' beginning of the string.  
+#' ```mutate(caz_subclass = str_extract(caz, "^[^\\(]+"),  
+#'        caz_subclass=gsub("_[0-9]*|_e[0-9]*","",caz_subclass))```
+#' CAZ class is caz subclass without numbers at the end. For example, GH1 becomes GH.
+head(dbcan.df)
 dbcan.df%>%
   nrow()
 
-#' 24063 cazymes
+#' 24063 CAZymes
 dbcan.df%>%
   summarise(n_caz=n_distinct(caz),
             n_caz_combo=n_distinct(caz_combo),
@@ -271,6 +275,7 @@ gene.annotation.df<-gene.annotation.df%>%
          annotation_type=ifelse(!is.na(caz)&is.na(ko),"dbCAN",annotation_type),
          annotation_type=ifelse(is.na(caz)&!is.na(ko),"KofamScan",annotation_type),
          annotation_type=ifelse(!is.na(caz)&!is.na(ko),"dbCAN+KofamScan",annotation_type))
+head(gene.annotation.df)
 rm(dbcan.df)
 rm(kofamscan.df)
 gc()
