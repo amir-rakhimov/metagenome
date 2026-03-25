@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 ######
 # This script performs the following:
 # 1. Renames FASTQ files to make them shorter because the sequencing company gave the files long 
@@ -103,23 +104,23 @@ fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
 FWD_ADAPTER=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT
 REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 
-# mkdir ~/common_data
-# mkdir ~/common_data/reference_genomes
-# mkdir output
-# mkdir output/qc_pipeline
-#mkdir output/qc_pipeline/fastqc_output
-#mkdir output/qc_pipeline/multiqc_output
-#mkdir output/qc_pipeline/cutadapt_output
-#mkdir output/qc_pipeline/temp_fasta
-#mkdir output/qc_pipeline/trf_output
-#mkdir output/qc_pipeline/fastq_norepeats
-#mkdir output/qc_pipeline/fastqc_output_decontam
-#mkdir output/bowtie2_pipeline
-#mkdir output/bowtie2_pipeline/bowtie2_output_sam
-#mkdir output/bowtie2_pipeline/bowtie2_output_bam
-#mkdir output/bowtie2_pipeline/bowtie2_filtered_bam
-#mkdir output/bowtie2_pipeline/bowtie2_sorted_bam
-#mkdir data/bowtie2_decontam_fastq
+mkdir -p ~/common_data
+mkdir -p ~/common_data/reference_genomes
+mkdir -p output
+mkdir -p output/qc_pipeline
+mkdir -p output/qc_pipeline/fastqc_output
+mkdir -p output/qc_pipeline/multiqc_output
+mkdir -p output/qc_pipeline/cutadapt_output
+mkdir -p output/qc_pipeline/temp_fasta
+mkdir -p output/qc_pipeline/trf_output
+mkdir -p output/qc_pipeline/fastq_norepeats
+mkdir -p output/qc_pipeline/fastqc_output_decontam
+mkdir -p output/bowtie2_pipeline
+mkdir -p output/bowtie2_pipeline/bowtie2_output_sam
+mkdir -p output/bowtie2_pipeline/bowtie2_output_bam
+mkdir -p output/bowtie2_pipeline/bowtie2_filtered_bam
+mkdir -p output/bowtie2_pipeline/bowtie2_sorted_bam
+mkdir -p data/bowtie2_decontam_fastq
 bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
 bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
 bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
@@ -134,37 +135,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # conda config --add channels biobakery
 # # Activate conda environment
 conda activate qc-tools 
-# Rename files
-cd "${fastq_dir}"
-for FILE in nmrF*.fq.gz; do mv "${FILE}" $(echo "${FILE}" | sed 's/nmrF_//'); done
-for FILE in *DKDN230040401-1A_HC3LYDSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040401-1A_HC3LYDSX7/wms/'); done
-for FILE in *DKDN230040401-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040401-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040402-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040402-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040410-1A_HC52YDSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040410-1A_HC52YDSX7/wms/'); done
-for FILE in *DKDN230040409-1A_HC3LYDSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040409-1A_HC3LYDSX7/wms/'); done
-for FILE in *DKDN230040409-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040409-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040411-1A_HC52YDSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040411-1A_HC52YDSX7/wms/'); done
-for FILE in *DKDN230040407-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040407-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040408-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040408-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040406-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040406-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040403-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040403-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040404-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040404-1A_HC557DSX7/wms/'); done
-for FILE in *DKDN230040405-1A_HC3LYDSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040405-1A_HC3LYDSX7/wms/'); done
-for FILE in *DKDN230040405-1A_HC557DSX7*.fq.gz; 
-  do mv "${FILE}" $(echo "${FILE}" | sed 's/DKDN230040405-1A_HC557DSX7/wms/'); done
+# Rename files: done in the rename script
 cd "${project_home_dir}"
 
 # Download reference genomes
