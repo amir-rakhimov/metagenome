@@ -1,10 +1,13 @@
 book_filename: "metagenome"
-rmd_subdir: "markdown"
 new_session: yes
-rmd_files:
-  - markdown/index.Rmd
-  - markdown/001-kraken2-classification-stats.Rmd
-  - markdown/002-phyloseq-kraken2.Rmd
-  - markdown/003-summary-stats-kraken2.Rmd
-  - markdown/004-barplots-kraken2.Rmd
-  - markdown/005-kraken2-maaslin2.Rmd
+rmd_files: ["markdown/index.Rmd", 
+ "markdown/001-kraken2-classification-stats.Rmd",
+ "markdown/002-phyloseq-kraken2.Rmd",
+ "markdown/003-summary-stats-kraken2.Rmd",
+ "markdown/004-barplots-kraken2.Rmd",
+ "markdown/005-kraken2-maaslin2.Rmd",
+ "markdown/006-mag-combine-all-data.Rmd",
+ "markdown/007-summary-stats-mag.Rmd",
+ "markdown/008-mag-taxonomy-plots.Rmd",
+ "markdown/009-mag-gene-annotation-combine-data.Rmd",
+ "markdown/010-mag-gene-annotation-plots.Rmd"]
