@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH -t 360:00:00
 #SBATCH -N 4
-#SBATCH -n 40
+#SBATCH -n 45
 #SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250721_13-41-mag-stats
-#SBATCH --output jobreports/20250721_13-41-mag-stats-out.txt
-#SBATCH --error jobreports/20250721_13-41-mag-stats-out.txt
-#I am requesting 4 nodes containing 30 CPUs, with 8 GB memory per CPU. Total: 240 GB
+#SBATCH -J 20250730_18-04-mag-stats
+#SBATCH --output jobreports/20250730_18-04-mag-stats-out.txt
+#SBATCH --error jobreports/20250730_18-04-mag-stats-out.txt
+#I am requesting 4 nodes containing 45 CPUs, with 8 GB memory per CPU. Total: 360 GB
 source ~/miniconda3/etc/profile.d/conda.sh
 shopt -s nullglob
 
@@ -22,11 +22,11 @@ metabat2_date_time=20250612_13_37_47
 drep_date_time=20250627_19_56_42
 megahit_date_time=20250303_17_54_26
 seqkit_stats_date_time=20250712_18_07_37
-coverm_date_time="${date_time}"
-coverm_drep_date_time="${date_time}"
-coverm_all_bins_date_time="${date_time}"
-coverm_contigs_date_time="${date_time}"
-nthreads=30
+coverm_date_time=20250803_05_07_53
+coverm_drep_date_time=20250803_05_07_53
+coverm_all_bins_date_time=20250803_05_07_53
+coverm_contigs_date_time=20250803_05_07_53
+nthreads=40
 nthreads_sort=35
 mem_req=8G
 mem_req_sort=4G
@@ -44,7 +44,7 @@ mkdir -p output/mag_assembly/seqkit_output
 mkdir -p output/mag_assembly/coverm_output
 
 # 0. Activate environment
-conda activate mag_assembly-tools
+conda activate coverm-env
 
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
@@ -53,7 +53,7 @@ echo "${intermediate_date_time}"
 for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
 do 
  SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
-#  base_name=$(basename "$SAMPLE" )
+ #  base_name=$(basename "$SAMPLE" )
  ## At species level (95% ANI)
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
@@ -70,7 +70,6 @@ do
   -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
     reads_per_base rpkm tpm \
   -o "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_95perc_coverm_output.tsv 
- rm -rf  "${TMPDIR}"
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
  ## At strain level (99% ANI)
@@ -87,7 +86,6 @@ do
   -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
     reads_per_base rpkm tpm \
   -o "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_99perc_coverm_output.tsv 
- rm -rf  "${TMPDIR}"
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
  # Running CoverM on all bins
@@ -103,8 +101,15 @@ do
   --min-covered-fraction 0 \
   -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
     reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_"${SAMPLE}"_all_bins_coverm_output.tsv 
- rm -rf  "${TMPDIR}"
+  -o "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_"${SAMPLE}"_all_bins_coverm_output.tsv;
+done 2>&1 |tee "${coverm_output_dir}"/"${coverm_date_time}"_all_coverm_report.txt
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+
+
+for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
+do 
+ SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
  intermediate_date_time=$(date +"%F %H:%M:%S")
  echo "${intermediate_date_time}"
  # On contigs
@@ -116,41 +121,74 @@ do
     "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
   --reference \
   "${megahit_output_dir}"/"${megahit_date_time}"_"${SAMPLE}".megahit_asm/"${megahit_date_time}"_"${SAMPLE}"_final.contigs.fa \
-  --sharded \
   -t "${nthreads}" \
   --min-covered-fraction 0 \
   -m mean trimmed_mean covered_fraction covered_bases variance length count reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${coverm_contigs_date_time}"_"${SAMPLE}"_megahit_coverm_output.tsv
- rm -rf  "${TMPDIR}";
-done 2>&1 |tee "${coverm_output_dir}"/"${coverm_date_time}"_all_coverm_report.txt
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+  -o "${coverm_output_dir}"/"${coverm_contigs_date_time}"_"${SAMPLE}"_megahit_coverm_output.tsv;
+done 2>&1 |tee "${coverm_output_dir}"/"${coverm_date_time}"_all_coverm_contig_report.txt
+
+
 
 # Fix the unmapped value to merge
-# for FILE in "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_95perc_coverm_output.tsv
-# do
-#  SAMPLE=$(basename "${FILE}" | sed "s/${coverm_drep_date_time}_//" |sed "s/_sa_95perc_coverm_output\.tsv//")
-#  awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-#   if ($1=="unmapped") {$1= "unmapped_" sample_name;} {print }}'  \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_95perc_coverm_output.tsv > \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_95perc_coverm_output_unmap_fix.tsv 
-#  # Fix for the other file (99%)
-#  awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-#   if ($1=="unmapped") {$1= "unmapped_" sample_name;} {print }}'  \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_99perc_coverm_output.tsv > \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_99perc_coverm_output_unmap_fix.tsv;
-# done
+for FILE in "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_95perc_coverm_output.tsv
+do
+ SAMPLE=$(basename "${FILE}" | sed "s/${coverm_drep_date_time}_//" |sed "s/_sa_95perc_coverm_output\.tsv//")
+ awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+  if ($1=="unmapped") {$1= "unmapped_" sample_name;}
+      {print }
+  }'  \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_95perc_coverm_output.tsv > \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_95perc_coverm_output_unmap_fix.tsv 
+ # Fix for the other file (99%)
+ awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+  if ($1=="unmapped") {$1= "unmapped_" sample_name;} 
+      {print }
+  }'  \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_99perc_coverm_output.tsv > \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_"${SAMPLE}"_sa_99perc_coverm_output_unmap_fix.tsv;
+done
 
-# conda activate qc-tools
-# awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_95perc_coverm_output_unmap_fix.tsv | \
-#   csvtk -t add-header -n genome,relative_abundance,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_all_samples_sa_95perc_coverm.tsv
+# For all bins
+for FILE in "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_*all_bins_coverm_output.tsv
+do
+ SAMPLE=$(basename "${FILE}" | sed "s/${coverm_all_bins_date_time}_//" |sed "s/_all_bins_coverm_output\.tsv//")
+ awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+  if ($1=="unmapped") {$1= "unmapped_" sample_name;}
+      {print }
+  }'  \
+  "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_"${SAMPLE}"_all_bins_coverm_output.tsv > \
+  "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_"${SAMPLE}"_all_bins_coverm_output_unmap_fix.tsv;
+done
 
-# awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_99perc_coverm_output_unmap_fix.tsv | \
-#   csvtk -t add-header -n genome,relative_abundance,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
-#   "${coverm_output_dir}"/"${coverm_drep_date_time}"_all_samples_sa_99perc_coverm.tsv
+# For all contigs: we need to add sample name to contig
+for FILE in "${coverm_output_dir}"/"${coverm_contigs_date_time}"_*_megahit_coverm_output.tsv
+do
+ SAMPLE=$(basename "${FILE}" | sed "s/${coverm_contigs_date_time}_//" |sed "s/_megahit_coverm_output\.tsv//")
+ awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+  $1= sample_name "_" $1 ;
+  print
+  }'  \
+  "${coverm_output_dir}"/"${coverm_contigs_date_time}"_"${SAMPLE}"_megahit_coverm_output.tsv > \
+  "${coverm_output_dir}"/"${coverm_contigs_date_time}"_"${SAMPLE}"_megahit_coverm_output_fix.tsv;
+done
 
-
+conda activate qc-tools
+# Merge all 95% ANI bins
+awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_95perc_coverm_output_unmap_fix.tsv | \
+  csvtk -t add-header -n genome,relative_abundance,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_all_samples_sa_95perc_coverm.tsv
+# Merge all 99% ANI bins
+awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_drep_date_time}"_*_sa_99perc_coverm_output_unmap_fix.tsv | \
+  csvtk -t add-header -n genome,relative_abundance,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
+  "${coverm_output_dir}"/"${coverm_drep_date_time}"_all_samples_sa_99perc_coverm.tsv
+# Merge all metabat bins
+awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_*_all_bins_coverm_output_unmap_fix.tsv | \
+  csvtk -t add-header -n genome,relative_abundance,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
+  "${coverm_output_dir}"/"${coverm_all_bins_date_time}"_all_samples_bins_coverm.tsv
+# Merge all megahit contigs
+awk 'FNR!=1'  "${coverm_output_dir}"/"${coverm_contigs_date_time}"_*_megahit_coverm_output_fix.tsv | \
+  csvtk -t add-header -n contig,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
+  "${coverm_output_dir}"/"${coverm_contigs_date_time}"_all_samples_megahit_coverm.tsv
 
 # conda activate qc-tools
 # # 2. Calculate statistics for each contig in each sample (MEGAHIT output): contig IDs, contig lengths, GC %, 
@@ -448,3 +486,9 @@ echo "${intermediate_date_time}"
 
 # # seqkit grep -n output/mag_assembly/megahit_output/20250211_22_55_27_2D14.megahit_asm/20250211_22_55_27_2D14_final.contigs.fa \
 # #  -p "k141_0 flag=1 multi=1.0000 len=364"  > output/mag_assembly/metabat2_output/2D14_k141_0.fa
+
+# How different are read counts in our samples?
+seqkit stats data/bowtie2_decontam_fastq/*_trim_decontam_R*.fastq.gz \
+  --tabular \
+  --threads 4 > \
+  output/mag_assembly/seqkit_output/20250728_14_27_54_trim_decontam_read_count.tsv 
