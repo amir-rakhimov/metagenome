@@ -107,7 +107,7 @@ awk 'NR > 1 { count++ }
   END {print "There are " count " MAGs in total." }
   '  "${checkm2_output_dir}"/"${checkm2_date_time}"_quality_reports_merged.tsv 
 
-# 2.3 Select high-quality MAGs (>=90% completeness, <=5% contamination): 313
+# 2.3 Select high-quality MAGs (>=90% completeness, <=5% contamination): 319
 # Completeness is column #2, contamination is column #3
 awk ' NR > 1 && $2 >= 90 && $3 <= 5 { count++ }
   END {
