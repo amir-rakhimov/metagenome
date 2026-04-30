@@ -26,35 +26,6 @@ date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
 start_date_time=$(date +"%F %H:%M:%S")
-megahit_date_time=20250303_17_54_26
-prodigal_date_time=20250303_17_54_26
-# prokka_date_time=20250522_10_37_23
-prokka_date_time=20250626_22_11_43
-mmseqs_easy_cluster_date_time=20250626_22_11_43
-dbcan_date_time=20250626_22_11_43
-kofam_scan_date_time=20250718_09_21_41
-nthreads=40
-nthreads_sort=35
-mem_req=8G
-mem_req_sort=4G
-project_home_dir=~/projects/metagenome
-output_dir=~/projects/metagenome/output/mag_assembly
-megahit_output_dir=output/mag_assembly/megahit_output
-prodigal_output_dir=output/mag_assembly/prodigal_output
-prokka_output_dir=output/mag_assembly/prokka_output
-mmseqs_easy_cluster_output_dir=output/mag_assembly/mmseqs_output/easy_cluster
-dbcan_output_dir=output/mag_assembly/dbcan_output
-kofam_scan_output_dir=output/mag_assembly/kofam_scan_output
-
-
-cd ${project_home_dir}
-mkdir -p data/dbcan_db
-mkdir -p output/mag_assembly/prodigal_output
-mkdir -p output/mag_assembly/prokka_output
-mkdir -p output/mag_assembly/mmseqs_output/easy_cluster
-mkdir -p output/mag_assembly/dbcan_output
-mkdir -p output/mag_assembly/kofam_scan_output
-
 
 # 1. Activate conda environment
 conda activate mag_assembly-tools
@@ -64,121 +35,121 @@ conda activate mag_assembly-tools
 # should I use -p meta or -p anon?
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-# for FILE_DIR in ${megahit_output_dir}/"${megahit_date_time}"*megahit_asm
+# for FILE_DIR in ${megahit_output_dir}/*megahit_asm
 # do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
+#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" )
 #  base_name=$(basename "$SAMPLE" )
-#  mkdir "${prodigal_output_dir}"/"${prodigal_date_time}"_"${base_name}"_prodigal
+#  mkdir "${prodigal_output_dir}"/"${base_name}"_prodigal
 #  prodigal \
-#     -i "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
-#     -o "${prodigal_output_dir}"/"${prodigal_date_time}"_"${base_name}"_prodigal/"${prodigal_date_time}"_"${base_name}"_prodigal_coords.gbk \
-#     -a "${prodigal_output_dir}"/"${prodigal_date_time}"_"${base_name}"_prodigal/"${prodigal_date_time}"_"${base_name}"_prodigal_proteins.faa \
-#     -p meta 2>&1 |tee "${prodigal_output_dir}"/"${prodigal_date_time}"_"${base_name}"_prodigal_report.txt;
+#     -i "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+#     -o "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_coords.gbk \
+#     -a "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_proteins.faa \
+#     -p meta 2>&1 |tee "${prodigal_output_dir}"/"${base_name}"_prodigal.log;
 # done
 
 
-# # 3. Prokka
-# # Input is contigs. Metagenome mode
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-# echo "${intermediate_date_time}"
-# echo "Running Prokka"
-# for FILE_DIR in ${megahit_output_dir}/"${megahit_date_time}"*megahit_asm
+# 3. Prokka
+# Input is contigs. Metagenome mode
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+echo "Running Prokka"
+for FILE_DIR in ${megahit_output_dir}/*megahit_asm
+do 
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
+ base_name=$(basename "$SAMPLE" )
+ prokka \
+    --outdir "${prokka_output_dir}"/"${base_name}"_prokka \
+    --prefix "${base_name}"_pred_prokka \
+    "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+    --metagenome \
+    --cpus "${nthreads_prokka}" 2>&1 |tee "${prokka_logs_dir}"/"${base_name}"_prokka.log;
+done
+
+# 3.1 Combine all the CDS into one file for clustering
+cat  "${prokka_output_dir}"/*_prokka/*pred_prokka.faa > "${prokka_output_dir}"/all_proteins.faa
+# There are 3771950 predicted CDS in total.
+grep ">" "${prokka_output_dir}"/all_proteins.faa | \
+ awk ' { count++ }
+    END {print "There are " count " predicted CDS in total." }
+    '  
+
+# 3.2 Filter proteins by length: >=100 bp (i.e. 33 aa).
+conda deactivate
+conda activate qc-tools
+seqkit seq -m 33  "${prokka_output_dir}"/all_proteins.faa > \
+ "${prokka_output_dir}"/all_proteins_filtered.faa
+
+# There are 3764752 predicted proteins >=100 bp (i.e. 33 aa).
+grep ">" "${prokka_output_dir}"/all_proteins_filtered.faa | \
+ awk ' { count++ }
+    END {print "There are " count " predicted proteins >=100 bp (i.e. 33 aa)." }
+    ' 
+
+conda deactivate
+conda activate mag_assembly-tools
+
+# 4. Remove redundant proteins with MMseqs2
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+echo "Running MMseqs2"
+# mmseqs module input_db output_db args [options]
+# cluster the proteins with the criteria of identity ≥95% and overlap ≥90%. 
+# Need to create output directory first
+mkdir -p "${mmseqs_easy_cluster_output_dir}"/
+mmseqs easy-cluster "${prokka_output_dir}"/all_proteins_filtered.faa \
+ "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot \
+ "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_temp \
+ --min-seq-id 0.95 \
+ -c 0.9 \
+ --cov-mode 0 \
+ --threads "${nthreads_prokka}" 2>&1 |tee "${mmseqs_easy_cluster_output_dir}"/mmseqs_easy_cluster.log
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+
+# 4.1 There are 1922857 nonredundant predicted proteins in total.
+grep ">" "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta | \
+ awk ' { count++ }
+    END {print "There are " count " nonredundant predicted proteins in total." }
+    ' 
+
+# 5. Use dbCAN to predict CAZymes
+# conda create --name dbcan-tools -c conda-forge -c bioconda python=3.8 dbcan 
+conda deactivate
+conda activate dbcan-tools
+# Download the database (7.9 GB)
+# dbcan_build --cpus "${nthreads_annotation}" --db-dir data/dbcan_db --clean
+# run_dbcan -h
+
+echo "Running dbCAN on nonredundant gene catalog"
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
+run_dbcan "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta \
+   protein \
+   --out_dir "${dbcan_output_dir}"/nr_dbcan_proteins \
+   --db_dir data/dbcan_db \
+   --dia_cpu "${nthreads_annotation}" \
+   --hmm_cpu "${nthreads_annotation}" \
+   --stp_cpu "${nthreads_annotation}" \
+   2>&1 |tee "${dbcan_logs_dir}"/nr_dbcan.log
+Rename the output file for comprehension
+cp "${dbcan_output_dir}"/nr_dbcan_proteins/overview.txt \
+  "${dbcan_output_dir}"/nr_dbcan_proteins/nr_dbcan_overview.txt 
+
+# for FILE_DIR in "${prodigal_output_dir}"/*_prodigal
 # do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
-#  base_name=$(basename "$SAMPLE" )
-#  prokka \
-#     --outdir "${prokka_output_dir}"/"${prokka_date_time}"_"${base_name}"_prokka \
-#     --prefix "${prokka_date_time}"_"${base_name}"_pred_prokka \
-#     "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
-#     --metagenome \
-#     --cpus "${nthreads_sort}" 2>&1 |tee "${prokka_output_dir}"/"${prokka_date_time}"_"${base_name}"_prokka_report.txt;
-# done
-
-# # 3.1 Combine all the CDS into one file for clustering
-# cat  "${prokka_output_dir}"/"${prokka_date_time}"_*_prokka/*pred_prokka.faa > "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins.faa
-# # There are 3771950 predicted CDS in total.
-# grep ">" "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins.faa | \
-#  awk ' { count++ }
-#     END {print "There are " count " predicted CDS in total." }
-#     '  
-
-# # 3.2 Filter proteins by length: >=100 bp (i.e. 33 aa).
-# conda deactivate
-# conda activate qc-tools
-# seqkit seq -m 33  "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins.faa > \
-#  "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins_filtered.faa
-
-# # There are 3764752 predicted proteins >=100 bp (i.e. 33 aa).
-# grep ">" "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins_filtered.faa | \
-#  awk ' { count++ }
-#     END {print "There are " count " predicted proteins >=100 bp (i.e. 33 aa)." }
-#     ' 
-
-# conda deactivate
-# conda activate mag_assembly-tools
-
-# # 4. Remove redundant proteins with MMseqs2
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-# echo "${intermediate_date_time}"
-# echo "Running MMseqs2"
-# # mmseqs module input_db output_db args [options]
-# # cluster the proteins with the criteria of identity ≥95% and overlap ≥90%. 
-# # Need to create output directory first
-# mkdir -p "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"
-# mmseqs easy-cluster "${prokka_output_dir}"/"${prokka_date_time}"_all_proteins_filtered.faa \
-#  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot \
-#  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_temp \
-#  --min-seq-id 0.95 \
-#  -c 0.9 \
-#  --cov-mode 0 \
-#  --threads "${nthreads_sort}" 2>&1 |tee "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"_mmseqs_easy_cluster_report.txt
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-# echo "${intermediate_date_time}"
-
-# # 4.1 There are 1922857 nonredundant predicted proteins in total.
-# grep ">" "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_rep_seq.fasta | \
-#  awk ' { count++ }
-#     END {print "There are " count " nonredundant predicted proteins in total." }
-#     ' 
-
-# # 5. Use dbCAN to predict CAZymes
-# # conda create --name dbcan-tools -c conda-forge -c bioconda python=3.8 dbcan 
-# conda deactivate
-# conda activate dbcan-tools
-# # Download the database (7.9 GB)
-# # dbcan_build --cpus "${nthreads}" --db-dir data/dbcan_db --clean
-# # run_dbcan -h
-
-# echo "Running dbCAN on nonredundant gene catalog"
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-# echo "${intermediate_date_time}"
-# run_dbcan "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_rep_seq.fasta \
-#    protein \
-#    --out_dir "${dbcan_output_dir}"/"${dbcan_date_time}"_nr_dbcan_proteins \
-#    --db_dir data/dbcan_db \
-#    --dia_cpu "${nthreads}" \
-#    --hmm_cpu "${nthreads}" \
-#    --stp_cpu "${nthreads}" \
-#    2>&1 |tee "${dbcan_output_dir}"/"${dbcan_date_time}"_nr_dbcan_report.txt
-# Rename the output file for comprehension
-# cp "${dbcan_output_dir}"/"${dbcan_date_time}"_nr_dbcan_proteins/overview.txt \
-#   "${dbcan_output_dir}"/"${dbcan_date_time}"_nr_dbcan_proteins/"${dbcan_date_time}"_nr_dbcan_overview.txt 
-
-# for FILE_DIR in "${prodigal_output_dir}"/"${prodigal_date_time}"*_prodigal
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prodigal//" |sed "s/${prodigal_date_time}_//")
+#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prodigal//")
 #  base_name=$(basename "$SAMPLE" )
 #  echo "Running dbCAN on ${base_name}"
 #  intermediate_date_time=$(date +"%F %H:%M:%S")
 #  echo "${intermediate_date_time}"
-#  run_dbcan "${prodigal_output_dir}"/"${prodigal_date_time}"_"${base_name}"_prodigal/"${prodigal_date_time}"_"${base_name}"_prodigal_proteins.faa \
+#  run_dbcan "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_proteins.faa \
 #    protein \
-#    --out_dir "${dbcan_output_dir}"/"${date_time}"_"${base_name}"_dbcan_proteins \
+#    --out_dir "${dbcan_output_dir}"/"${base_name}"_dbcan_proteins \
 #    --db_dir data/dbcan_db \
-#    --dia_cpu "${nthreads}" \
-#    --hmm_cpu "${nthreads}" \
-#    --stp_cpu "${nthreads}" \
-#    2>&1 |tee "${dbcan_output_dir}"/"${date_time}"_"${base_name}"_dbcan_report.txt;
+#    --dia_cpu "${nthreads_annotation}" \
+#    --hmm_cpu "${nthreads_annotation}" \
+#    --stp_cpu "${nthreads_annotation}" \
+#    2>&1 |tee "${dbcan_logs_dir}"/"${base_name}"_dbcan.log;
 # done
 conda deactivate 
 
@@ -187,15 +158,15 @@ conda deactivate
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 echo "Running KofamScan"
-mkdir -p "${kofam_scan_output_dir}"/"${kofam_scan_date_time}"_tmp_dir
+mkdir -p "${kofam_scan_output_dir}"/tmp_dir
 ~/kofamscan/bin/kofam_scan-1.3.0/exec_annotation \
-  -o "${kofam_scan_output_dir}"/"${kofam_scan_date_time}"_nr_prot_kofam_scan.txt \
+  -o "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt \
   -p ~/kofamscan/db/profiles \
   -k ~/kofamscan/db/ko_list \
-  --tmp-dir "${kofam_scan_output_dir}"/"${kofam_scan_date_time}"_tmp_dir \
-  --cpu "${nthreads}" \
+  --tmp-dir "${kofam_scan_output_dir}"/tmp_dir \
+  --cpu "${nthreads_annotation}" \
   -f detail-tsv \
-  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_rep_seq.fasta
+  "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
@@ -211,10 +182,10 @@ awk 'BEGIN {FS=OFS="\t"}
     ko_def = $7;
     if ((threshold !="") && (score > threshold)) {print gene, ko, threshold, score, evalue, ko_def}
     
-}' "${kofam_scan_output_dir}"/"${kofam_scan_date_time}"_nr_prot_kofam_scan.txt | \
+}' "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt | \
   sort -t$'\t' -k1,1 -k4,4nr -k5,5g | awk '!seen[$1]++' | \
   awk 'BEGIN {FS=OFS="\t"; print "gene_name","ko","threshold","score","evalue","ko_definition"} {print}' > \
-   "${kofam_scan_output_dir}"/"${kofam_scan_date_time}"_nr_prot_kofam_scan_top_hits.txt
+   "${kofam_scan_output_dir}"/nr_prot_kofam_scan_top_hits.txt
 
 
 # #######

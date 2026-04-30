@@ -23,29 +23,7 @@ date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time=${date_var}_${time_var}
 start_date_time=$(date +"%F %H:%M:%S")
-# For binning with MetaBAT2
-megahit_date_time=20250303_17_54_26
-bbwrap_date_time=20250326_08_18_26
-# metabat2_bin_date_time=20250417_23_21_29
-metabat2_depth_file_date_time=20250417_23_21_29
-metabat2_bin_date_time="${date_time}"
-nthreads=40
-nthreads_sort=35
-mem_req=8G
-mem_req_sort=4G
-project_home_dir=~/projects/metagenome
-output_dir=~/projects/metagenome/output/mag_assembly
-megahit_output_dir=output/mag_assembly/megahit_output
-megahit_aligned_reads_dir=output/mag_assembly/megahit_output/alignedreads
-bam_contig_depths_dir=output/mag_assembly/bam_contig_depths
-metabat2_output_dir=output/mag_assembly/metabat2_output
-metabat2_reports_dir=output/mag_assembly/metabat2_reports
 
-cd ${project_home_dir}
-mkdir -p output/mag_assembly/megahit_output/alignedreads
-mkdir -p output/mag_assembly/metabat2_reports
-mkdir -p output/mag_assembly/bam_contig_depths
-mkdir -p output/mag_assembly/bbwrap_refs
 
 # 0. Show the current time for logging
 echo "${start_date_time}"
@@ -60,23 +38,23 @@ echo "${start_date_time}"
 # The rows represent all the contigs in the assembly
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_*.megahit_asm 
-# # for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_2D14.megahit_asm \
-# #  "${megahit_output_dir}"/"${megahit_date_time}"_G14.megahit_asm \
-# #  "${megahit_output_dir}"/"${megahit_date_time}"_H15.megahit_asm
+for FILE_DIR in "${megahit_output_dir}"/*.megahit_asm 
+# # for FILE_DIR in "${megahit_output_dir}"/2D14.megahit_asm \
+# #  "${megahit_output_dir}"/G14.megahit_asm \
+# #  "${megahit_output_dir}"/H15.megahit_asm
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
  base_name=$(basename "$SAMPLE" )
  echo "Running jgi_summarize_bam_contig_depths on ${base_name}"
  jgi_summarize_bam_contig_depths \
     --percentIdentity 97 \
     --minContigLength 1000 \
     --minContigDepth 1.0  \
-    --referenceFasta "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
-    "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam \
-    --outputDepth "${bam_contig_depths_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}".depth.txt \
-    2>&1 |tee  "${metabat2_reports_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}"_jgi_summarize_bam_contig_depths_report.txt
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam;
+    --referenceFasta "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+    "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam \
+    --outputDepth "${bam_contig_depths_dir}"/"${base_name}".depth.txt \
+    2>&1 |tee  "${metabat2_logs_dir}"/"${base_name}"_jgi_summarize_bam_contig_depths.log
+ gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam;
 done
 #  docker run --workdir $(pwd) --volume $(pwd):$(pwd) metabat:latest jgi_summarize_bam_contig_depths \
 
@@ -88,20 +66,20 @@ done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 echo "Running MetaBAT2"
-for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"*megahit_asm
-# for FILE_DIR in "${megahit_output_dir}"/"${megahit_date_time}"_2D14.megahit_asm \
-#  "${megahit_output_dir}"/"${megahit_date_time}"_G14.megahit_asm \
-#  "${megahit_output_dir}"/"${megahit_date_time}"_H15.megahit_asm
+for FILE_DIR in "${megahit_output_dir}"/*megahit_asm
+# for FILE_DIR in "${megahit_output_dir}"/2D14.megahit_asm \
+#  "${megahit_output_dir}"/G14.megahit_asm \
+#  "${megahit_output_dir}"/H15.megahit_asm
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" |sed "s/${megahit_date_time}_//")
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
  base_name=$(basename "$SAMPLE" )
  echo "Running MetaBAT2 on ${base_name}"
  metabat2 \
-    -i "${megahit_output_dir}"/"${megahit_date_time}"_"${base_name}".megahit_asm/"${megahit_date_time}"_"${base_name}"_final.contigs.fa \
-    -a "${bam_contig_depths_dir}"/"${metabat2_depth_file_date_time}"_"${base_name}".depth.txt  \
-    -o "${metabat2_output_dir}"/"${metabat2_bin_date_time}"_"${base_name}"_bins/"${metabat2_bin_date_time}"_"${base_name}"_bin \
+    -i "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+    -a "${bam_contig_depths_dir}"/"${base_name}".depth.txt  \
+    -o "${metabat2_output_dir}"/"${base_name}"_bins/"${base_name}"_bin \
     -v \
-    2>&1 |tee "${metabat2_reports_dir}"/"${metabat2_bin_date_time}"_"${base_name}"_metabat2_report.txt;
+    2>&1 |tee "${metabat2_logs_dir}"/"${base_name}"_metabat2.log;
 done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"

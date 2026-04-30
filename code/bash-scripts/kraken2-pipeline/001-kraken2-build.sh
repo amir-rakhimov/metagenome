@@ -84,7 +84,7 @@ echo "${intermediate_date_time}"
 
 ## Build the database: uses taxonomy and library
 echo "Building the database"
-kraken2-build --build --threads "${nthreads}" \
+kraken2-build --build --threads "${nthreads_kraken2_build}" \
  --db "${kraken2_db_dir}" \
  --kmer-len "${kmer_len}"  \
  --minimizer-len "${minimizer_len}" \
@@ -105,7 +105,7 @@ intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 echo "Building the bracken index"
 bracken-build -d "${kraken2_db_dir}" \
- -t "${nthreads}" \
+ -t "${nthreads_kraken2_build}" \
  -k "${kmer_len}" \
  -l "${read_len}"
 intermediate_date_time=$(date +"%F %H:%M:%S")

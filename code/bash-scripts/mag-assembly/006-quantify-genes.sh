@@ -14,34 +14,6 @@ date_var=$(date -I|sed 's/-//g')
 time_var=$(date +%T |sed 's/:/_/g' )
 date_time="${date_var}_${time_var}"
 start_date_time=$(date +"%F %H:%M:%S")
-megahit_date_time=20250303_17_54_26
-bbwrap_date_time=20250326_08_18_26
-picard_date_time=20250603_18_19_44
-htseq_count_date_time=20250710_19_36_58
-# prokka_date_time=20250515_11_29_31
-prokka_date_time=20250626_22_11_43
-mmseqs_easy_cluster_date_time=20250626_22_11_43
-java_path=~/jdk-24.0.1/bin/java
-picard_jar_path=~/picard.jar
-project_home_dir=~/projects/metagenome
-output_dir=~/projects/metagenome/output/mag_assembly
-megahit_aligned_reads_dir=output/mag_assembly/megahit_output/alignedreads
-picard_output_dir=output/mag_assembly/picard_output
-prokka_output_dir=output/mag_assembly/prokka_output
-prokka_gtf_dir=output/mag_assembly/prokka_gtf_files
-mmseqs_easy_cluster_output_dir=output/mag_assembly/mmseqs_output/easy_cluster
-htseq_gene_count_dir=output/mag_assembly/htseq_gene_count
-gene_lengths_dir=output/mag_assembly/gene_lengths
-tpm_files_dir=output/mag_assembly/tpm_files
-# index_files_dir=output/mag_assembly/index_files
-#
-mkdir -p output/mag_assembly/picard_output
-# mkdir -p output/mag_assembly/index_files
-mkdir -p output/mag_assembly/prokka_gtf_files
-mkdir -p output/mag_assembly/htseq_gene_count
-mkdir -p output/mag_assembly/gene_lengths
-mkdir -p output/mag_assembly/tpm_files
-
 echo "${start_date_time}"
 
 # 0. Activate conda environment
@@ -51,103 +23,103 @@ conda activate qc-tools
 # https://www.biostars.org/p/15818/
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
-# for FILE in "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"*_either_read_mapped_sorted.bam.gz
-# do 
-#  SAMPLE=$(echo "${FILE}" | sed "s/_either_read_mapped_sorted\.bam\.gz//" |sed "s/${bbwrap_date_time}_//")
-#  base_name=$(basename "$SAMPLE" )
-#  gunzip "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam.gz
-#  # Add Read group because Picard can't run without it
-#  echo "Adding read group to ${base_name}"
-#  samtools addreplacerg \
-#     -r 'ID:group1' \
-#     -r 'LB:lib1' \
-#     -r 'PL:ILLUMINA' \
-#     -r 'PU:unit1' \
-#     -r 'SM:sample1' \
-#     -o "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted_RG.bam \
-#     "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam
-#  gzip -9 --best "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted.bam
-#  echo "Running Picard MarkDuplicates on ${base_name}"
-#  "${java_path}" -Xms2g -Xmx32g -jar "${picard_jar_path}" MarkDuplicates \
-#     INPUT="${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted_RG.bam \
-#     OUTPUT="${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_map.markdup.bam \
-#     METRICS_FILE="${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_map.markdup.metrics \
-#     AS=TRUE \
-#     VALIDATION_STRINGENCY=LENIENT \
-#     MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000 \
-#     REMOVE_DUPLICATES=TRUE \
-#     2>&1 |tee "${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_picard_markduplicates_report.txt
-#  gzip -9 --best "${megahit_aligned_reads_dir}"/"${bbwrap_date_time}"_"${base_name}"_either_read_mapped_sorted_RG.bam;
-# done
+for FILE in "${megahit_aligned_reads_dir}"/*_either_read_mapped_sorted.bam.gz
+do 
+ SAMPLE=$(echo "${FILE}" | sed "s/_either_read_mapped_sorted\.bam\.gz//")
+ base_name=$(basename "$SAMPLE" )
+ gunzip "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam.gz
+ # Add Read group because Picard can't run without it
+ echo "Adding read group to ${base_name}"
+ samtools addreplacerg \
+    -r 'ID:group1' \
+    -r 'LB:lib1' \
+    -r 'PL:ILLUMINA' \
+    -r 'PU:unit1' \
+    -r 'SM:sample1' \
+    -o "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted_RG.bam \
+    "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam
+ gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam
+ echo "Running Picard MarkDuplicates on ${base_name}"
+ "${java_path}" -Xms2g -Xmx32g -jar "${picard_jar_path}" MarkDuplicates \
+    INPUT="${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted_RG.bam \
+    OUTPUT="${picard_output_dir}"/"${base_name}"_map.markdup.bam \
+    METRICS_FILE="${picard_output_dir}"/"${base_name}"_map.markdup.metrics \
+    AS=TRUE \
+    VALIDATION_STRINGENCY=LENIENT \
+    MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000 \
+    REMOVE_DUPLICATES=TRUE \
+    2>&1 |tee "${picard_logs_dir}"/"${base_name}"_picard_markduplicates.log
+ gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted_RG.bam;
+done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
 # 2. Extract all non-redundant protein locus tags (unique for each sample)
-# echo "Extracting all non-redundant protein locus tags (unique for each sample)"
-# grep "^>" \
-#  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_rep_seq.fasta | \
-#  sed "s/^>//"| awk -F' ' '{print $1}' > \
-#  "${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_ids.txt
-# echo "Number of non-redundant protein locus tags:" $(wc -l "${mmseqs_clustered_ids_file}")
+echo "Extracting all non-redundant protein locus tags (unique for each sample)"
+grep "^>" \
+ "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta | \
+ sed "s/^>//"| awk -F' ' '{print $1}' > \
+ "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_ids.txt
+echo "Number of non-redundant protein locus tags:" $(wc -l "${mmseqs_clustered_ids_file}")
 
-# mmseqs_clustered_ids_file="${mmseqs_easy_cluster_output_dir}"/"${mmseqs_easy_cluster_date_time}"/"${mmseqs_easy_cluster_date_time}"_prokka_nr_prot_ids.txt
+mmseqs_clustered_ids_file="${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_ids.txt
 
 
 # 3. Counting mapped reads per gene
 # Convert Prokka output into GTF then count the number of reads mapped to each gene with htseq
 # https://metagenomics-workshop.readthedocs.io/en/latest/annotation/quantification.html
-for FILE_DIR in "${prokka_output_dir}"/"${prokka_date_time}"*_prokka
+for FILE_DIR in "${prokka_output_dir}"/*_prokka
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prokka//" |sed "s/${prokka_date_time}_//")
+ SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prokka//")
  base_name=$(basename "$SAMPLE" )
  # Select specific data from Prokka GFF output and convert into GTF. 
  # cut -d uses ";" as a delimiter, while -f1 selects the first field
  # (everything up to ID).
  # In the final GTF file, all features are CDS because we want to count all genes.
  # Real feature types are in the 9th column ($2).
- gunzip "${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_map.markdup.bam.gz
+ gunzip "${picard_output_dir}"/"${base_name}"_map.markdup.bam.gz
  echo "Converting Prokka output of ${base_name} into GTF"
- grep -v "#" "${FILE_DIR}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.gff | \
+ grep -v "#" "${FILE_DIR}"/"${base_name}"_pred_prokka.gff | \
     grep "ID=" | cut -f1 -d ';' | sed 's/ID=//g' | cut -f1,3,4,5,7,9 | \
     awk -v OFS='\t' '{print $1,"PROKKA","CDS",$3,$4,".",$5,".","gene_id", "ID="$6";Note="$2}' > \
-    "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.map.gtf
-#  echo "Filtering the GTF file by MMseqs clustered IDs"
-#  # I want to filter a GTF file using a list of IDs stored in the "ID=XXXX;Note=" section. 
-#  awk -F'\t' -v mmseqs_file="${mmseqs_clustered_ids_file}" \
-#  'BEGIN {
-#     # getline means read the file and if a line is successfully read, return 1. 0 if awk reached 
-#     # end of the file. -1 if there is an error like permission denied or file doesnt exist.
-#     while ((getline < mmseqs_file ) > 0) {
-#       mmseqs_ids[$1] = 1
-#     } 
-#   }
-#   {
-#     # match($10, /ID=([^;]+)/, prokka_gtf_ids) will search string for the longest, leftmost substring matched by the 
-#     # regular expression ID=([^;]+) and return the character position (index) at which that substring begins
-#     # (one, if it starts at the beginning of string). 
-#     # Extract all the IDs in the gtf field 10 and store in an array prokka_gtf_ids.
-#     # match(string, regexp [, array])
+    "${prokka_gtf_dir}"/"${base_name}"_pred_prokka.map.gtf
+ echo "Filtering the GTF file by MMseqs clustered IDs"
+ # I want to filter a GTF file using a list of IDs stored in the "ID=XXXX;Note=" section. 
+ awk -F'\t' -v mmseqs_file="${mmseqs_clustered_ids_file}" \
+ 'BEGIN {
+    # getline means read the file and if a line is successfully read, return 1. 0 if awk reached 
+    # end of the file. -1 if there is an error like permission denied or file doesnt exist.
+    while ((getline < mmseqs_file ) > 0) {
+      mmseqs_ids[$1] = 1
+    } 
+  }
+  {
+    # match($10, /ID=([^;]+)/, prokka_gtf_ids) will search string for the longest, leftmost substring matched by the 
+    # regular expression ID=([^;]+) and return the character position (index) at which that substring begins
+    # (one, if it starts at the beginning of string). 
+    # Extract all the IDs in the gtf field 10 and store in an array prokka_gtf_ids.
+    # match(string, regexp [, array])
 
-#     # Regex explanation: The regexp argument may be either a regexp constant (/…/) or a string constant ("…").
-#     # First, match /ID=/ (literal match). Then, /([^;]+)/ captures one or more characters that are not semicolons 
-#     # So, (...) is the capturing group: everything inside is stored as a match in the array prokka_gtf_ids.
-#     # We use square brackets [...] to define character class: [abc] means "a single character that is a, b, or c"
-#     # Here, [^;] means "a single character that is not a semicolon".
-#     # + means one or more character.
+    # Regex explanation: The regexp argument may be either a regexp constant (/…/) or a string constant ("…").
+    # First, match /ID=/ (literal match). Then, /([^;]+)/ captures one or more characters that are not semicolons 
+    # So, (...) is the capturing group: everything inside is stored as a match in the array prokka_gtf_ids.
+    # We use square brackets [...] to define character class: [abc] means "a single character that is a, b, or c"
+    # Here, [^;] means "a single character that is not a semicolon".
+    # + means one or more character.
     
-#     match($10, /ID=([^;]+)/, prokka_gtf_ids)
+    match($10, /ID=([^;]+)/, prokka_gtf_ids)
 
-#     # If the prokka_gtf_ids entry is found in indices of mmseqs_ids, print.
-#     # By the way, we use prokka_gtf_ids[1] because index 1 is the first captured group (if there are other matches between
-#     # ID and semicolon in a string, they would be in prokka_gtf_ids[2] or prokka_gtf_ids[3], or others)
+    # If the prokka_gtf_ids entry is found in indices of mmseqs_ids, print.
+    # By the way, we use prokka_gtf_ids[1] because index 1 is the first captured group (if there are other matches between
+    # ID and semicolon in a string, they would be in prokka_gtf_ids[2] or prokka_gtf_ids[3], or others)
 
-#     if (prokka_gtf_ids[1] in mmseqs_ids)
-#         print $0
-#   }
-#  ' "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.map.gtf > \
-#     "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka_mmseqs_filtered.map.gtf
-#  echo "Number of non-redundant protein locus tags in" "${base_name}" \
-#   $(wc -l "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka_mmseqs_filtered.map.gtf)
+    if (prokka_gtf_ids[1] in mmseqs_ids)
+        print $0
+  }
+ ' "${prokka_gtf_dir}"/"${base_name}"_pred_prokka.map.gtf > \
+    "${prokka_gtf_dir}"/"${base_name}"_pred_prokka_mmseqs_filtered.map.gtf
+ echo "Number of non-redundant protein locus tags in" "${base_name}" \
+  $(wc -l "${prokka_gtf_dir}"/"${base_name}"_pred_prokka_mmseqs_filtered.map.gtf)
  # Counting the number of reads mapped to genes with htseq. Here we have to tell
  # htseq that the file is sorted by alignment coordinate -r pos.
  # The output file has two columns, the first contains the gene names and the second
@@ -155,22 +127,22 @@ do
  # information from htseq: __no_feature, __ambiguous, __too_low_aQual, __not_aligned,
  # __alignment_not_unique
  echo "Quantifying the number of reads mapped to genes with htseq on ${base_name}"
- htseq-count -r pos -t CDS -f bam "${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_map.markdup.bam \
-    "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.map.gtf > \
-    "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_"${base_name}"_prokka.count \
-    2>&1 |tee "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_"${base_name}"_htseq_count_report.txt
- grep "ID" "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_"${base_name}"_prokka.count | \
+ htseq-count -r pos -t CDS -f bam "${picard_output_dir}"/"${base_name}"_map.markdup.bam \
+    "${prokka_gtf_dir}"/"${base_name}"_pred_prokka.map.gtf > \
+    "${htseq_gene_count_dir}"/"${base_name}"_prokka.count \
+    2>&1 |tee "${htseq_logs_dir}"/"${base_name}"_htseq_count.log
+ grep "ID" "${htseq_gene_count_dir}"/"${base_name}"_prokka.count | \
    sed 's/ID=//g' > \
-   "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_"${base_name}"_prokka_filtered.count
- gzip -9 --best "${picard_output_dir}"/"${picard_date_time}"_"${base_name}"_map.markdup.bam;
+   "${htseq_gene_count_dir}"/"${base_name}"_prokka_filtered.count
+ gzip -9 --best "${picard_output_dir}"/"${base_name}"_map.markdup.bam;
 done
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
 
 # Combine GTF data into a TSV file: CDS, rRNA, tRNA, partial genes, pseudogenes, etc.
-for FILE in "${prokka_gtf_dir}"/"${prokka_date_time}"_*_pred_prokka.map.gtf 
+for FILE in "${prokka_gtf_dir}"/*_pred_prokka.map.gtf 
 do
- SAMPLE=$(basename "${FILE}" | sed "s/_pred_prokka\.map\.gtf//" |sed "s/${prokka_date_time}_//")
+ SAMPLE=$(basename "${FILE}" | sed "s/_pred_prokka\.map\.gtf//" )
  # Select contig ID ($1), gene start($4) and gene end ($5), and gene ID ($10)
  # But gene ID column also has gene type (Note=...)
  cut -f1,4,5,10 "${FILE}" |sed 's/ID=//g' | \
@@ -183,36 +155,36 @@ do
       print
    }
    '  | gawk -v sample_name="${SAMPLE}"  '{print sample_name,$1,$4,$3-$2+1,$5}'| tr ' ' '\t' > \
- "${prokka_gtf_dir}"/"${prokka_date_time}"_"${SAMPLE}"_contig_gene_mapping.tsv;
+ "${prokka_contig_gene_maps_dir}"/"${SAMPLE}"_contig_gene_mapping.tsv;
 done
 
 # All mappings (including redundancies): 3847253 entries, but only 3771950 CDS
-cat "${prokka_gtf_dir}"/"${prokka_date_time}"_*_contig_gene_mapping.tsv > \
-   "${prokka_gtf_dir}"/"${prokka_date_time}"_all_contig_gene_maps.tsv
+cat "${prokka_contig_gene_maps_dir}"/*_contig_gene_mapping.tsv > \
+   "${prokka_contig_gene_maps_dir}"/all_contig_gene_maps.tsv
 # 3847253 entries with counts
-cat "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_*_prokka_filtered.count > \
-   "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_all_prokka_counts.tsv
+cat "${htseq_gene_count_dir}"/*_prokka_filtered.count > \
+   "${htseq_gene_count_dir}"/all_prokka_counts.tsv
 
 
 # 4. Normalizing to Transcripts Per Million (TPM)
 # The gene lengths we can get from the GTF file that you used with htseq:
-# for FILE in "${prokka_gtf_dir}"/"${prokka_date_time}"*_pred_prokka.map.gtf
-# do 
-#  SAMPLE=$(echo "${FILE}" | sed "s/_pred_prokka\.map\.gtf//" |sed "s/${prokka_date_time}_//")
-#  base_name=$(basename "$SAMPLE" )
-#  # Here we extract only the start (#4), stop(#5) and gene name fields(#10) from the file, 
-#  # then remove the 'ID=' and ';Note= ...' string, print the gene name first followed by the 
-#  # length of the gene, change the separator to tab and store the results in the .genelengths file.
-#  cut -f4,5,10 "${prokka_gtf_dir}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.map.gtf | \
-#    sed 's/ID=//g' |sed 's/\;.*//g' | gawk '{print $3,$2-$1+1}' | tr ' ' '\t' > \
-#    "${gene_lengths_dir}"/"${prokka_date_time}"_"${base_name}".genelengths
-#  # Now we can calculate TPM values using the tpm_table.py script:
-#  python3 code/python-scripts/tpm_table.py \
-#    -n "${base_name}" \
-#    -c "${htseq_gene_count_dir}"/"${htseq_count_date_time}"_"${base_name}"_prokka_filtered.count \
-#    -i <(echo -e ""${base_name}"\t150") \
-#    -l "${gene_lengths_dir}"/"${prokka_date_time}"_"${base_name}".genelengths > \
-#       "${tpm_files_dir}"/"${prokka_date_time}"_"${base_name}".tpm;
-# # We now have coverage values for all genes predicted and annotated by the PROKKA pipeline;
-# done
+for FILE in "${prokka_gtf_dir}"/*_pred_prokka.map.gtf
+do 
+ SAMPLE=$(echo "${FILE}" | sed "s/_pred_prokka\.map\.gtf//" )
+ base_name=$(basename "$SAMPLE" )
+ # Here we extract only the start (#4), stop(#5) and gene name fields(#10) from the file, 
+ # then remove the 'ID=' and ';Note= ...' string, print the gene name first followed by the 
+ # length of the gene, change the separator to tab and store the results in the .genelengths file.
+ cut -f4,5,10 "${prokka_gtf_dir}"/"${base_name}"_pred_prokka.map.gtf | \
+   sed 's/ID=//g' |sed 's/\;.*//g' | gawk '{print $3,$2-$1+1}' | tr ' ' '\t' > \
+   "${gene_lengths_dir}"/"${base_name}".genelengths
+ # Now we can calculate TPM values using the tpm_table.py script:
+ python3 code/shared/tpm_table.py \
+   -n "${base_name}" \
+   -c "${htseq_gene_count_dir}"/"${base_name}"_prokka_filtered.count \
+   -i <(echo -e ""${base_name}"\t150") \
+   -l "${gene_lengths_dir}"/"${base_name}".genelengths > \
+      "${tpm_files_dir}"/"${base_name}".tpm;
+# We now have coverage values for all genes predicted and annotated by the PROKKA pipeline;
+done
 

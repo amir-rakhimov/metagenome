@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
-prokka_date_time=20250626_22_11_43
-project_home_dir=~/projects/metagenome
-prokka_output_dir="${project_home_dir}"/output/mag_assembly/prokka_output
-bowtie2_decontam_fastq_dir="${project_home_dir}"/data/bowtie2_decontam_fastq
-metathermo_out_dir="${project_home_dir}"/output/mag_assembly/meta-thermo_output
+source ~/miniconda3/etc/profile.d/conda.sh
 conda activate meta-thermo-env
+intermediate_date_time=$(date +"%F %H:%M:%S")
+echo "${intermediate_date_time}"
 
 cd $metathermo_out_dir
-for FILE_DIR in "${prokka_output_dir}"/"${prokka_date_time}"*_prokka
+for FILE_DIR in "${prokka_output_dir}"/*_prokka
 do 
-    SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prokka//" |sed "s/${prokka_date_time}_//")
+    SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prokka//")
     base_name=$(basename "$SAMPLE" )
     echo "${base_name}"
     python ~/meta-thermo/scripts/MPTcalculation.py \
-        "${FILE_DIR}"/"${prokka_date_time}"_"${base_name}"_pred_prokka.faa \
+        "${FILE_DIR}"/"${base_name}"_pred_prokka.faa \
         "${base_name}"_MPT.csv "${base_name}"_AA.csv; 
 done
 
