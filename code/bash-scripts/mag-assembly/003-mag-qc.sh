@@ -7,7 +7,7 @@
 #SBATCH --output jobreports/20250627_14-27-mag-qc-out.txt
 #SBATCH --error jobreports/20250627_14-27-mag-qc-out.txt
 #I am requesting 4 nodes containing 40 CPUs, with 8 GB memory per CPU. Total: 320 GB
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
 shopt -s nullglob
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
@@ -25,11 +25,10 @@ date_time=${date_var}_${time_var}
 start_date_time=$(date +"%F %H:%M:%S")
 
 # 0. Show the current time for logging
-echo "${start_date_time}"
-
+echo $(date +"%F %H:%M:%S")
 # 1. QC MetaBAT2 bins with QUAST
 intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE_DIR in "${metabat2_output_dir}"/*bins
 # # # for FILE_DIR in "${metabat2_output_dir}"/2D14_bins \
 # # #  "${metabat2_output_dir}"/G14_bins \
@@ -47,8 +46,7 @@ done
 
 # 2. CheckM2
 conda activate checkm2-env
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running CheckM2"
 for FILE_DIR in "${metabat2_output_dir}"/*bins
 do 
@@ -65,8 +63,7 @@ done
 # # Usage: checkm2 predict --threads 30 --input <folder_with_bins> --output-directory <output_folder> 
 # conda deactivate
 
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 conda activate mag_assembly-tools
 # 2.1 Merge CheckM2 quality reports
 first_file=true
@@ -122,8 +119,7 @@ awk 'NR>1 {print $1}' "${checkm2_output_dir}"/high_quality_mags.tsv |\
 
 # 3. Run drep to get unique MAGs
 # dRep dereplicate -g path/to/genomes/*.fasta -p "${nthreads_qc}"  "${drep_output_dir}"
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 # https://www.nature.com/articles/s42003-021-02827-2
 # All MAGs were dereplicated at 99% ANI (equivalent to the strain level) and 95% ANI
 #  (equivalent to the species level) using dRep (v2.6.2).
@@ -151,8 +147,7 @@ dRep dereplicate \
  -d \
  "${drep_output_dir}"/sa_95perc \
  2>&1 |tee "${mag_qc_logs_dir}"/drep_sa_95perc.log
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 
 # 3.2 dRep at strain level: secondary clustering threshold of 99% ANI
 dRep dereplicate \
@@ -169,8 +164,7 @@ dRep dereplicate \
  -d \
  "${drep_output_dir}"/sa_99perc \
  2>&1 |tee "${mag_qc_logs_dir}"/drep_sa_99perc.log
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 # Default:
 #  -comp 75 \
 #  -con 25 \
