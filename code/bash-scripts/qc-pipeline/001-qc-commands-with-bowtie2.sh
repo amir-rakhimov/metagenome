@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source $HOME/miniconda3/etc/profile.d/conda.sh
 
 ######
 # This script performs the following:
@@ -10,9 +11,9 @@
 # https://www.cureffi.org/2013/02/01/the-decoy-genome/). 
 
 # The reference genomes are merged into one FASTA file and saved in 
-# the `~/common_data/reference_genomes` directory 
+# the `$HOME/common_data/reference_genomes` directory 
 # as `all_hosts_reference.fasta` file. BowTie2 also builds an index using `all_hosts_reference.fasta` 
-# and saves it in the `~/common_data/bowtie2_indices` directory.
+# and saves it in the `$HOME/common_data/bowtie2_indices` directory.
 
 # 3. Runs FASTQC and MultiQC on raw reads.
 
@@ -32,7 +33,7 @@
 
 # 5. Aligns trimmed reads to the reference genomes with BowTie2.
 
-# Input: the BowTie2 index (`~/common_data/bowtie2_indices/all_hosts_reference`), trimmed
+# Input: the BowTie2 index (`$HOME/common_data/bowtie2_indices/all_hosts_reference`), trimmed
 # FASTQ files (`output/qc_pipeline/cutadapt_output`).
 
 # Output: SAM and BAM files with reads that are mapped and unmapped to reference genomes. The SAM
@@ -87,53 +88,8 @@
 # * Final quality check reports from FASTQC and MultiQC
 ######
 
-nthreads=12
-mem_req=8G
-mem_req_sort=4G
-nthreads_sort=8
-project_home_dir=~/projects/metagenome
-fastq_dir=data/fastq/yasuda-fastq
-reference_genomes_dir=~/common_data/reference_genomes
-bowtie2_indices_dir=~/common_data/bowtie2_indices
-fastqc_output_dir=output/qc_pipeline/fastqc_output
-multiqc_output_dir=output/qc_pipeline/multiqc_output
-cutadapt_output_dir=output/qc_pipeline/cutadapt_output
-temp_fasta_dir=output/qc_pipeline/temp_fasta
-trf_output_dir=output/qc_pipeline/trf_output
-fastq_norepeats_dir=output/qc_pipeline/fastq_norepeats
-FWD_ADAPTER=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT
-REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 
-mkdir -p ~/common_data
-mkdir -p ~/common_data/reference_genomes
-mkdir -p output
-mkdir -p output/qc_pipeline
-mkdir -p output/qc_pipeline/fastqc_output
-mkdir -p output/qc_pipeline/multiqc_output
-mkdir -p output/qc_pipeline/cutadapt_output
-mkdir -p output/qc_pipeline/temp_fasta
-mkdir -p output/qc_pipeline/trf_output
-mkdir -p output/qc_pipeline/fastq_norepeats
-mkdir -p output/qc_pipeline/fastqc_output_decontam
-mkdir -p output/bowtie2_pipeline
-mkdir -p output/bowtie2_pipeline/bowtie2_output_sam
-mkdir -p output/bowtie2_pipeline/bowtie2_output_bam
-mkdir -p output/bowtie2_pipeline/bowtie2_filtered_bam
-mkdir -p output/bowtie2_pipeline/bowtie2_sorted_bam
-mkdir -p data/bowtie2_decontam_fastq
-bowtie2_output_sam_dir=output/bowtie2_pipeline/bowtie2_output_sam
-bowtie2_output_bam_dir=output/bowtie2_pipeline/bowtie2_output_bam
-bowtie2_filtered_bam_dir=output/bowtie2_pipeline/bowtie2_filtered_bam
-bowtie2_sorted_bam_dir=output/bowtie2_pipeline/bowtie2_sorted_bam
-bowtie2_decontam_fastq_dir=data/bowtie2_decontam_fastq
-fastqc_output_decontam_dir=output/qc_pipeline/fastqc_output_decontam
-source ~/miniconda3/etc/profile.d/conda.sh
-# Set conda channel priority
-# conda config --add channels defaults
-# conda config --add channels bioconda
-# conda config --add channels conda-forge
-# conda config --add channels biobakery
-# # Activate conda environment
+# Activate conda environment
 conda activate qc-tools 
 # Rename files: done in the rename script
 cd "${project_home_dir}"
@@ -176,8 +132,8 @@ sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|1
 cat "${reference_genomes_dir}"/*genomic.fna > "${reference_genomes_dir}"/all_hosts_reference.fasta 
 cat "${reference_genomes_dir}"/phiX174.fasta >>"${reference_genomes_dir}"/all_hosts_reference.fasta
 # # Build a bowtie2 large index
-bowtie2-build --large-index --threads ${nthreads} "${reference_genomes_dir}"/all_hosts_reference.fasta \
-  ${bowtie2_indices_dir}/all_hosts_reference
+bowtie2-build --large-index --threads "${nthreads_qc}" "${reference_genomes_dir}"/all_hosts_reference.fasta \
+  "${bowtie2_indices_dir}"/all_hosts_reference
 
 # The QC workflow is this:
 ### 1. Run FastQC and trim overrepresented sequences
@@ -197,7 +153,7 @@ bowtie2-build --large-index --threads ${nthreads} "${reference_genomes_dir}"/all
 # 1. Run FastQC and trim overrepresented sequences
 fastqc "${fastq_dir}"/*.fq.gz --outdir "${fastqc_output_dir}"
 ## 1.1 Run MultiQC
-multiqc ${fastqc_output_dir}/ --outdir ${multiqc_output_dir}
+multiqc "${fastqc_output_dir}"/ --outdir ${multiqc_output_dir}
 
 # 2. Run Cutadapt
 ### Three filtering steps:
@@ -210,24 +166,24 @@ do
  SAMPLE=$(echo ${FILE} | sed "s/_wms_L3_1\.fq\.gz//")
  base_name=$(basename "$SAMPLE" )
  cutadapt \
-  --cores=${nthreads} \
-  -g ${FWD_ADAPTER} -G ${REV_ADAPTER} \
+  --cores="${nthreads_qc}" \
+  -g "${FWD_ADAPTER}" -G "${REV_ADAPTER}" \
   --max-n 0.1 \
   -q 5 \
   -O 5 \
   --minimum-length 75 \
   --discard-trimmed \
-  -o ${cutadapt_output_dir}/${base_name}_R1.trimmed.fastq.gz \
-  -p ${cutadapt_output_dir}/${base_name}_R2.trimmed.fastq.gz \
-  ${fastq_dir}/${base_name}_wms_L3_1.fq.gz ${fastq_dir}/${base_name}_wms_L3_2.fq.gz > \
-  ${cutadapt_output_dir}/${base_name}_report.txt;
+  -o "${cutadapt_output_dir}"/"${base_name}"_R1.trimmed.fastq.gz \
+  -p "${cutadapt_output_dir}"/"${base_name}"_R2.trimmed.fastq.gz \
+  "${fastq_dir}"/"${base_name}"_wms_L3_1.fq.gz "${fastq_dir}"/"${base_name}"_wms_L3_2.fq.gz > \
+  "${cutadapt_output_dir}"/"${base_name}"_report.txt;
 done
 
 ### FILE: data/fastq/yasuda-fastq/2D10_wms_L3_1.fq.gz
 ### SAMPLE: data/fastq/yasuda-fastq/2D10
 ### base_name: 2D10 
 # cutadapt \
-#   --cores=${nthreads} \                         ## number of cores for parallelisation
+#   --cores=${nthreads_qc} \                         ## number of cores for parallelisation
 #   -g ${FWD_ADAPTER} -G ${REV_ADAPTER} \         ## 5' adapter
 #   --max-n 0.1 \                                 ## do not allow > 10% Ns
 #   -q 5 \                                        ## remove bases with basequal < 5
@@ -237,104 +193,28 @@ done
 #   -o read1_trimmed.fq -p read2_trimmed.fq \     ## outputs
 #   read1.fq read2.fq                             ## inputs
 
-# 3. Remove repeats with TRF
-## 3.1 Create temporary fasta files with seqtk seq
-# for FILE in ${cutadapt_output_dir}/*R1.trimmed.fastq.gz
-# do 
-#   SAMPLE=$(echo ${FILE} | sed "s/_R1\.trimmed\.fastq\.gz//")
-#   base_name=$(basename "$SAMPLE" )
-#   seqtk seq -a ${cutadapt_output_dir}/${base_name}_R1.trimmed.fastq.gz \
-#     > ${temp_fasta_dir}/${base_name}_R1.trimmed.fasta
-#   seqtk seq -a ${cutadapt_output_dir}/${base_name}_R2.trimmed.fastq.gz \
-#     > ${temp_fasta_dir}/${base_name}_R2.trimmed.fasta;
-# done
 
-## 3.2 Run TRF in parallel
-# cd ${trf_output_dir}
-# # Find all files in the temp_fasta directory
-# temp_fasta_files=$(find ${project_home_dir}/${temp_fasta_dir} -type f \( -name "*R1.trimmed.fasta"\
-#  -o -name "*R2.trimmed.fasta" \))
-# # run TRF parallel
-# python3 ${project_home_dir}/code/python-scripts/parallel_trf.py \
-#   --input-file-dir ${project_home_dir}/${temp_fasta_dir} \
-#   --input-file-suffix "trimmed.fasta" \
-#   --trf-output-dir . \
-#   --trf-output-file-suffix "trf_out.dat" \
-#   --nthreads ${nthreads} \
-#   --files ${temp_fasta_files} 
-
-# parallel_trf.py usage: 
-#           python3 parallel_trf.py <input_file_dir> <input_file_suffix> \n"
-#               "\t <trf_output_dir> <trf_output_file_suffix> <num_processes> \n"
-#               "\t<file1> <file2> ...
-# TRF command: 
-# trf ${project_home_dir}/${temp_fasta_dir}/${base_name}_R1.trimmed.fasta \
-    # 2 7 7 80 10 50 500 -f -d -m -h -ngs \
-    # > ${base_name}_R1.trf_out.dat
-
-### -f: flanking sequence around each repeat is recorded in the alignment file
-### -d: A data file (.dat) is produced. This file is a text file which contains 
-### the same information, in the same order, as the summary table file, 
-### plus consensus pattern and repeat sequences.
-### -m: instructs the program to generate a masked sequence file. 
-### The masked sequence file is a FASTA format file containing a copy of the sequence 
-### with every location that occurred in a tandem repeat changed to the letter N. 
-### The word <<masked>> is added to the sequence description line just after the > character.
-### -h: suppress HTML output 
-### -ngs: More compact .dat output on multisequence files, returns 0 on success
-
-## 3.3 Remove repeats identified by TRF from FASTQ files in parallel
-# cd ${project_home_dir}
-# ### Find all files in the cutadapt_output_dir directory
-# trimmed_files=$(find ${project_home_dir}/${cutadapt_output_dir} -type f \( -name "*R1.trimmed.fastq.gz"\
-#  -o -name "*R2.trimmed.fastq.gz" \))
-# python3 code/python-scripts/parallel_remove_repeats_from_fastq.py \
-#   --remove-repeats-script code/python-scripts/remove_repeats_from_fastq.py \
-#   --input-file-dir ${cutadapt_output_dir} \
-#   --input-file-suffix trimmed.fastq.gz \
-#   --trf-file-dir ${trf_output_dir} \
-#   --trf-file-suffix trf_out.dat \
-#   --output-dir ${fastq_norepeats_dir} \
-#   --output-file-suffix clean.fastq.gz \
-#   --nthreads ${nthreads} \
-#   --files ${trimmed_files}
-# parallel_remove_repeats_from_fastq.py usage: 
-#   python3 parallel_remove_repeats_from_fastq.py
-#   <remove_repeats.py> <cutadapt_output_dir> <trf_output_dir>
-#   <fastq_norepeats_dir> <num_processes>
-
-# remove_repeats_from_fastq.py usage: 
-#   python3 code/python-scripts/remove_repeats_from_fastq.py \
-#   ${cutadapt_output_dir}/${base_name}_R1.trimmed.fastq.gz \
-#   ${trf_output_dir}/${base_name}_R1.trf_out.dat \
-#   ${fastq_norepeats_dir}/${base_name}_R1.clean.fastq.gz 
-
-# trimmed fastq/fastq.gz to be cleaned: {cutadapt_output_dir}/2D10_wms_L1_1.trimmed.fastq.gz 
-# trf output dat file from TRF: {trf_output_dir}/2D10_wms_L1_1.trf_out.dat
-# name of cleaned fastq/fastq.gz: ${fastq_norepeats_dir}/2D10_wms_L1_1.clean.fastq.gz
-
-# 4 Bowtie2
+# 3. Bowtie2
 # The Bowtie2 pipeline consists of these steps:
-### 4.1 Align the reads to the reference genome (remove host DNA with bowtie2)
-### 4.2 Convert file .sam to .bam
-### 4.3 Filter unmapped reads (unmapped to host genome)
-### 4.4 Split paired-end reads into separated fastq files .._R1 .._R2
+### 3.1 Align the reads to the reference genome (remove host DNA with bowtie2)
+### 3.2 Convert file .sam to .bam
+### 3.3 Filter unmapped reads (unmapped to host genome)
+### 3.4 Split paired-end reads into separated fastq files .._R1 .._R2
 ### sort bam file by read name ( -n ) to have paired reads next to each other 
-### 5.1 Run FastQC and MultiQC on decontaminated data as a final check
-### 5.2 Run MultiQC on decontaminated data
+### 4.1 Run FastQC and MultiQC on decontaminated data as a final check
+### 4.2 Run MultiQC on decontaminated data
 
-### RUN WITHOUT TRIMMOMATIC OR TRF
 ### FILE is the entire path (data/fastq/yasuda-fastq/2D10_wms_L3_4.fq.gz)
 ### SAMPLE is path and file without extension (data/fastq/yasuda-fastq/2D10_wms)
 ### base_name is just the file without extension or path (2D10_wms)
 
-# 4.1 Align the reads to the reference genome (remove host DNA with bowtie2)
+# 3.1 Align the reads to the reference genome (remove host DNA with bowtie2)
 ### On raw data (don't do it!)
 # for FILE in ${fastq_dir}/*L3_1.fq.gz
 # do 
 #   SAMPLE=$(echo ${FILE} | sed "s/_L3_1\.fq\.gz//")
 #   base_name=$(basename "$SAMPLE" )
-#   bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
+#   bowtie2 -p ${nthreads_qc} -x ${bowtie2_indices_dir}/all_hosts_reference \
 #   -1 ${fastq_dir}/${base_name}_L3_1.fq.gz \
 #   -2 ${fastq_dir}/${base_name}_L3_2.fq.gz \
 #   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
@@ -345,10 +225,10 @@ for FILE in ${cutadapt_output_dir}/*R1.trimmed.fastq.gz
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_R1\.trimmed\.fastq\.gz//")
   base_name=$(basename "$SAMPLE" )
-  bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
-  -1 ${cutadapt_output_dir}/${base_name}_R1.trimmed.fastq.gz \
-  -2 ${cutadapt_output_dir}/${base_name}_R2.trimmed.fastq.gz \
-  -S ${bowtie2_output_sam_dir}/${base_name}_trim_mapped_and_unmapped.sam;
+  bowtie2 -p "${nthreads_qc}" -x ${bowtie2_indices_dir}/all_hosts_reference \
+  -1 "${cutadapt_output_dir}"/"${base_name}"_R1.trimmed.fastq.gz \
+  -2 "${cutadapt_output_dir}"/"${base_name}"_R2.trimmed.fastq.gz \
+  -S "${bowtie2_output_sam_dir}"/"${base_name}"_trim_mapped_and_unmapped.sam;
 done
 
 ### On trimmed data where tandem repeats were removed (TRF)
@@ -363,7 +243,7 @@ done
 # done
 
 
-## 1.2 Convert file .sam to .bam
+## 3.2 Convert file .sam to .bam
 for FILE in ${bowtie2_output_sam_dir}/*mapped_and_unmapped.sam
 do 
   SAMPLE=$(echo ${FILE} | sed "s/_mapped_and_unmapped\.sam//")
@@ -372,7 +252,7 @@ do
     ${bowtie2_output_bam_dir}/${base_name}_mapped_and_unmapped.bam;
 done
 
-## 1.3 Filter unmapped reads (unmapped to host genome)
+## 3.3 Filter unmapped reads (unmapped to host genome)
 ### SAMtools SAM-flag filter: get unmapped pairs (both reads R1 and R2 unmapped)
 for FILE in ${bowtie2_output_bam_dir}/*mapped_and_unmapped.bam 
 do 
@@ -385,7 +265,7 @@ done
 ###-f  12    # Extract only ( -f ) alignments with both reads unmapped: <read unmapped><mate unmapped>
 ###-F 256    # Do not (  -F  ) extract alignments which are: <not primary alignment>
 
-## 1.4 Split paired-end reads into separated fastq files .._R1 .._R2
+## 3.4 Split paired-end reads into separated fastq files .._R1 .._R2
 ### First, sort bam file by read name ( -n ) to have paired reads next to each other 
 ### (${nthreads_sort} parallel threads, each using up to 5G memory)
 ### Then, filter and split
@@ -402,8 +282,8 @@ do
   	-0 /dev/null -s /dev/null -n;
 done
 
-# 5.1 Run FastQC and MultiQC on decontaminated data as a final check
+# 4.1 Run FastQC and MultiQC on decontaminated data as a final check
 # fastqc ${bowtie2_decontam_fastq_dir}/2D10_wms_decontam_R1.fastq.gz --outdir fastqc_output
 fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_output_decontam_dir}
-## 5.2 Run MultiQC on decontaminated data
+## 4.2 Run MultiQC on decontaminated data
 multiqc ${fastqc_output_decontam_dir} --outdir ${multiqc_output_dir}
