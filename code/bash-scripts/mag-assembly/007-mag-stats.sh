@@ -10,9 +10,6 @@ source config/bash/config.sh
 # Seqkit is used to calculate statistics such as contig length, GC%, AT% for all contigs 
 # in MEGAHIT output and in dereplicated bins, and saves as tab-separated files for each sample.
 
-# 0. Activate environment
-conda activate coverm-env
-
 echo "$(date +"%F %H:%M:%S")"
 
 # 1. CoverM calculates abundance of dereplicated bins

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-#include <omp.h>
-#include <stdio.h>
 export OMP_NUM_THREADS=49
 source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate kraken2-tools-2.1.6

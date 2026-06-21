@@ -99,7 +99,6 @@ grep ">" "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta | \
     ' 
 
 # 5. Use dbCAN to predict CAZymes
-# conda create --name dbcan-tools -c conda-forge -c bioconda python=3.8 dbcan 
 conda deactivate
 conda activate dbcan-tools
 # Download the database (7.9 GB)
