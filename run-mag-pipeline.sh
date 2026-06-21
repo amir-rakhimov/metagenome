@@ -69,3 +69,25 @@ mkdir -p "${blastp_logs_dir}"
 
 mkdir -p "${metathermo_out_dir}"
 
+job_id1=$(sbatch --parsable --export=ALL code/slurm-scripts/megahit.slurm)
+job_id2=$(sbatch --parsable --dependency=afterok:$job_id1 --export=ALL code/slurm-scripts/metabat2.slurm)
+job_id3=$(sbatch --parsable --dependency=afterok:$job_id2 --export=ALL code/slurm-scripts/mag-qc.slurm)
+job_id4=$(sbatch --parsable --dependency=afterok:$job_id3 --export=ALL code/slurm-scripts/taxonomic-classification.slurm)
+job_id5=$(sbatch --parsable --dependency=afterok:$job_id4 --export=ALL code/slurm-scripts/genome-annotation.slurm)
+job_id6=$(sbatch --parsable --dependency=afterok:$job_id5 --export=ALL code/slurm-scripts/quantify-genes.slurm)
+job_id7=$(sbatch --parsable --dependency=afterok:$job_id6 --export=ALL code/slurm-scripts/mag-stats.slurm)
+job_id8=$(sbatch --parsable --dependency=afterok:$job_id7 --export=ALL code/slurm-scripts/blast-contigs.slurm)
+job_id9=$(sbatch --parsable --dependency=afterok:$job_id8 --export=ALL code/slurm-scripts/search-cazymes-blast.slurm)
+job_id10=$(sbatch --parsable --dependency=afterok:$job_id9 --export=ALL code/slurm-scripts/meta-thermo.slurm)
+
+echo "Pipeline submitted"
+echo " step 1: ${job_id1}"
+echo " step 2: ${job_id2}"
+echo " step 2: ${job_id3}"
+echo " step 2: ${job_id4}"
+echo " step 2: ${job_id5}"
+echo " step 2: ${job_id6}"
+echo " step 2: ${job_id7}"
+echo " step 2: ${job_id8}"
+echo " step 2: ${job_id9}"
+echo " step 2: ${job_id10}"
