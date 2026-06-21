@@ -3,7 +3,7 @@ set -euo pipefail
 shopt -s nullglob
 qc_RUN_ID=$(date +%Y%m%d_%H%M%S)
 # Load config
-source config/config.sh
+source config/bash/config.sh
 
 ## data
 mkdir -p "${fastq_dir}"
