@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-#SBATCH -t 360:00:00
-#SBATCH -N 4
-#SBATCH -n 20
-#SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250809_19-19-search-cazymes-blast
-#SBATCH --output jobreports/20250809_19-19-search-cazymes-blast-out.txt
-#SBATCH --error jobreports/20250809_19-19-search-cazymes-blast-out.txt
-source ~/miniconda3/etc/profile.d/conda.sh
-date_var=$(date -I|sed 's/-//g')
-time_var=$(date +%T |sed 's/:/_/g' )
-date_time=${date_var}_${time_var}
-start_date_time=$(date +"%F %H:%M:%S")
-
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate mag_assembly-tools
+set -euo pipefail
+shopt -s nullglob
+source config/bash/config.sh
+echo "$(date +"%F %H:%M:%S")"
 conda activate qc-tools
 
 # Download information about taxonomy of reference CAZymes

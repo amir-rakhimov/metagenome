@@ -1,18 +1,10 @@
 #!/usr/bin/env bash
-#SBATCH -N 4
-#SBATCH -n 49
-#SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250911_17-50-kraken2-pipeline
-#SBATCH --output jobreports/20250911_17-50-kraken2-pipeline-out.txt
-#SBATCH --error jobreports/20250911_17-50-kraken2-pipeline-out.txt
-#I am requesting 4 nodes containing 49 CPUs, with 8 GB memory per CPU. Total: 392 GB
-
-source ~/miniconda3/etc/profile.d/conda.sh
-MANIFEST=$1
-source "${MANIFEST}"
-source config/config.sh
-echo $RUN_ID
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate kraken2-tools-2.1.3
+set -euo pipefail
 shopt -s nullglob
+source config/bash/config.sh
+
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -121,7 +113,6 @@ shopt -s nullglob
 ### directory with database and taxonomy
 # kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date} 
 
-conda activate kraken2-tools-2.1.3
 echo "${start_date_time}"
 
 

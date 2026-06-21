@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate meta-thermo-env
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+set -euo pipefail
+shopt -s nullglob
+source config/bash/config.sh
+echo "$(date +"%F %H:%M:%S")"
 
 cd $metathermo_out_dir
 for FILE_DIR in "${prokka_output_dir}"/*_prokka

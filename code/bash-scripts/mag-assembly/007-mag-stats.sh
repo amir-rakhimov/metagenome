@@ -1,105 +1,91 @@
 #!/usr/bin/env bash
-#SBATCH -t 360:00:00
-#SBATCH -N 4
-#SBATCH -n 45
-#SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250730_18-04-mag-stats
-#SBATCH --output jobreports/20250730_18-04-mag-stats-out.txt
-#SBATCH --error jobreports/20250730_18-04-mag-stats-out.txt
-#I am requesting 4 nodes containing 45 CPUs, with 8 GB memory per CPU. Total: 360 GB
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate mag_assembly-tools
+set -euo pipefail
 shopt -s nullglob
+source config/bash/config.sh
 
 # This script calculates statistics of assembled bins from MetaBAT2. CoverM is used to 
 # calculate relative abundances of dereplicated bins and contigs (from MEGAHIT).
 # Seqkit is used to calculate statistics such as contig length, GC%, AT% for all contigs 
 # in MEGAHIT output and in dereplicated bins, and saves as tab-separated files for each sample.
-date_var=$(date -I|sed 's/-//g')
-time_var=$(date +%T |sed 's/:/_/g' )
-date_time=${date_var}_${time_var}
 
 # 0. Activate environment
 conda activate coverm-env
 
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 
 # 1. CoverM calculates abundance of dereplicated bins
 for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
 do 
- SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
- #  base_name=$(basename "$SAMPLE" )
- ## At species level (95% ANI)
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- echo "Running CoverM on ${SAMPLE} at species level (95% ANI)"
- mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
- TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
- coverm genome \
-  --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-    "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-  --genome-fasta-files \
-  "${drep_output_dir}"/sa_95perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
-  -t "${nthreads_coverm}" \
-  --min-covered-fraction 0 \
-  -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-    reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv 
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- ## At strain level (99% ANI)
- mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
- TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
- echo "Running CoverM on ${SAMPLE} at strain level (99% ANI)"
- coverm genome \
-  --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-    "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-  --genome-fasta-files \
-  "${drep_output_dir}"/sa_99perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
-  -t "${nthreads_coverm}" \
-  --min-covered-fraction 0 \
-  -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-    reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv 
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- # Running CoverM on all bins
- mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
- TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
- echo "Running CoverM on all bins from ${SAMPLE}"
- coverm genome \
-  --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-    "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-  --genome-fasta-files \
-  "${metabat2_output_dir}"/"${SAMPLE}"_bins/"${SAMPLE}"_bin.*.fa \
-  -t "${nthreads_coverm}" \
-  --min-covered-fraction 0 \
-  -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-    reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv;
+    SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
+    #  base_name=$(basename "$SAMPLE" )
+    ## At species level (95% ANI)
+    echo "$(date +"%F %H:%M:%S")"
+    echo "Running CoverM on ${SAMPLE} at species level (95% ANI)"
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
+    coverm genome \
+    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
+        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
+    --genome-fasta-files \
+    "${drep_output_dir}"/sa_95perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
+    -t "${nthreads_coverm}" \
+    --min-covered-fraction 0 \
+    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+        reads_per_base rpkm tpm \
+    -o "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv 
+    echo "$(date +"%F %H:%M:%S")"
+    ## At strain level (99% ANI)
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
+    echo "Running CoverM on ${SAMPLE} at strain level (99% ANI)"
+    coverm genome \
+    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
+        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
+    --genome-fasta-files \
+    "${drep_output_dir}"/sa_99perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
+    -t "${nthreads_coverm}" \
+    --min-covered-fraction 0 \
+    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+        reads_per_base rpkm tpm \
+    -o "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv 
+    echo "$(date +"%F %H:%M:%S")"
+    # Running CoverM on all bins
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
+    echo "Running CoverM on all bins from ${SAMPLE}"
+    coverm genome \
+    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
+        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
+    --genome-fasta-files \
+    "${metabat2_output_dir}"/"${SAMPLE}"_bins/"${SAMPLE}"_bin.*.fa \
+    -t "${nthreads_coverm}" \
+    --min-covered-fraction 0 \
+    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+        reads_per_base rpkm tpm \
+    -o "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv;
 done 2>&1 |tee "${coverm_logs_dir}"/all_coverm.log
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 
 
 for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
 do 
- SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- # On contigs
- mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
- TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
- echo "Running CoverM on ${SAMPLE} at contig level"
- coverm contig \
-  --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-    "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-  --reference \
-  "${megahit_output_dir}"/"${SAMPLE}".megahit_asm/"${SAMPLE}"_final.contigs.fa \
-  -t "${nthreads_coverm}" \
-  --min-covered-fraction 0 \
-  -m mean trimmed_mean covered_fraction covered_bases variance length count reads_per_base rpkm tpm \
-  -o "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv;
+    SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
+    echo "$(date +"%F %H:%M:%S")"
+    # On contigs
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
+    echo "Running CoverM on ${SAMPLE} at contig level"
+    coverm contig \
+    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
+        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
+    --reference \
+    "${megahit_output_dir}"/"${SAMPLE}".megahit_asm/"${SAMPLE}"_final.contigs.fa \
+    -t "${nthreads_coverm}" \
+    --min-covered-fraction 0 \
+    -m mean trimmed_mean covered_fraction covered_bases variance length count reads_per_base rpkm tpm \
+    -o "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv;
 done 2>&1 |tee "${coverm_logs_dir}"/all_coverm_contig.log
 
 
@@ -107,44 +93,44 @@ done 2>&1 |tee "${coverm_logs_dir}"/all_coverm_contig.log
 # Fix the unmapped value to merge
 for FILE in "${coverm_output_dir}"/*_sa_95perc_coverm_output.tsv
 do
- SAMPLE=$(basename "${FILE}" | sed "s/_sa_95perc_coverm_output\.tsv//")
- awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-  if ($1=="unmapped") {$1= "unmapped_" sample_name;}
-      {print }
-  }'  \
-  "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv > \
-  "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output_unmap_fix.tsv 
- # Fix for the other file (99%)
- awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-  if ($1=="unmapped") {$1= "unmapped_" sample_name;} 
-      {print }
-  }'  \
-  "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv > \
-  "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output_unmap_fix.tsv;
+    SAMPLE=$(basename "${FILE}" | sed "s/_sa_95perc_coverm_output\.tsv//")
+    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    if ($1=="unmapped") {$1= "unmapped_" sample_name;}
+        {print }
+    }'  \
+    "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output_unmap_fix.tsv 
+    # Fix for the other file (99%)
+    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    if ($1=="unmapped") {$1= "unmapped_" sample_name;} 
+        {print }
+    }'  \
+    "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output_unmap_fix.tsv;
 done
 
 # For all bins
 for FILE in "${coverm_output_dir}"/*all_bins_coverm_output.tsv
 do
- SAMPLE=$(basename "${FILE}" | sed "s/_all_bins_coverm_output\.tsv//")
- awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-  if ($1=="unmapped") {$1= "unmapped_" sample_name;}
-      {print }
-  }'  \
-  "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv > \
-  "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output_unmap_fix.tsv;
+    SAMPLE=$(basename "${FILE}" | sed "s/_all_bins_coverm_output\.tsv//")
+    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    if ($1=="unmapped") {$1= "unmapped_" sample_name;}
+        {print }
+    }'  \
+    "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output_unmap_fix.tsv;
 done
 
 # For all contigs: we need to add sample name to contig
 for FILE in "${coverm_output_dir}"/*_megahit_coverm_output.tsv
 do
- SAMPLE=$(basename "${FILE}" | sed "s/_megahit_coverm_output\.tsv//")
- awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
-  $1= sample_name "_" $1 ;
-  print
-  }'  \
-  "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv > \
-  "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output_fix.tsv;
+    SAMPLE=$(basename "${FILE}" | sed "s/_megahit_coverm_output\.tsv//")
+    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    $1= sample_name "_" $1 ;
+    print
+    }'  \
+    "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output_fix.tsv;
 done
 
 conda activate qc-tools
@@ -169,8 +155,7 @@ conda activate qc-tools
 # 2. Calculate statistics for each contig in each sample (MEGAHIT output): contig IDs, contig lengths, GC %, 
 # AT %. Output is a tab-separated file for each sample which is located in a
 # directory with all sample statistics.
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Calculating statistics on contigs"
 mkdir -p "${seqkit_output_dir}"/megahit_all_tsv
 seqkit_all_tsv_dir="${seqkit_output_dir}"/megahit_all_tsv
@@ -189,8 +174,7 @@ do
       FNR>1 {print sample,$0}'  > \
       "${seqkit_all_tsv_dir}"/megahit_"${SAMPLE}"_seqkit.tsv;
 done
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 
 
 
@@ -199,8 +183,7 @@ echo "${intermediate_date_time}"
 # # Calculate statistics for each contig in each dereplicated bin: contig IDs, contig lengths, GC %, 
 # # AT %. Output is a tab-separated file for each bin which is located in a
 # # directory with all sample statistics.
-# intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+# echo "$(date +"%F %H:%M:%S")"
 echo "Calculating statistics on dereplicated bins"
 mkdir -p "${seqkit_output_dir}"/sa_95perc_all_tsv
 seqkit_all_tsv_dir="${seqkit_output_dir}"/sa_95perc_all_tsv

@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
-#SBATCH -t 360:00:00
-#SBATCH -N 4
-#SBATCH -n 40
-#SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250717_18-47-genome-annotation
-#SBATCH --output jobreports/20250717_18-47-genome-annotation-out.txt
-#SBATCH --error jobreports/20250717_18-47-genome-annotation-out.txt
-#I am requesting 4 nodes containing 40 CPUs, with 8 GB memory per CPU. Total: 320 GB
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate mag_assembly-tools
+set -euo pipefail
 shopt -s nullglob
+source config/bash/config.sh
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -22,19 +17,12 @@ shopt -s nullglob
 # KEGG orthologs with KofamScan.
 # Main output: Proteins predicted by PROKKA (fasta for each file), non-redundant protein sequences (multi-fasta), 
 # CAZyme annotation (tab-separated file), KEGG Ortholog annotation.
-date_var=$(date -I|sed 's/-//g')
-time_var=$(date +%T |sed 's/:/_/g' )
-date_time=${date_var}_${time_var}
-start_date_time=$(date +"%F %H:%M:%S")
-
-# 1. Activate conda environment
-conda activate mag_assembly-tools
+echo "$(date +"%F %H:%M:%S")"
 
 # 2. Prodigal
 # Anonymous mode (for metagenomes)
 # should I use -p meta or -p anon?
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 # for FILE_DIR in ${megahit_output_dir}/*megahit_asm
 # do 
 #  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" )
@@ -50,34 +38,34 @@ echo "${intermediate_date_time}"
 
 # 3. Prokka
 # Input is contigs. Metagenome mode
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running Prokka"
 for FILE_DIR in ${megahit_output_dir}/*megahit_asm
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
- base_name=$(basename "$SAMPLE" )
- prokka \
-    --outdir "${prokka_output_dir}"/"${base_name}"_prokka \
-    --prefix "${base_name}"_pred_prokka \
-    "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
-    --metagenome \
-    --cpus "${nthreads_prokka}" 2>&1 |tee "${prokka_logs_dir}"/"${base_name}"_prokka.log;
+    SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
+    base_name=$(basename "$SAMPLE" )
+    echo "$(date +"%F %H:%M:%S")"
+    prokka \
+        --outdir "${prokka_output_dir}"/"${base_name}"_prokka \
+        --prefix "${base_name}"_pred_prokka \
+        "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+        --metagenome \
+        --cpus "${nthreads_prokka}" 2>&1 |tee "${prokka_logs_dir}"/"${base_name}"_prokka.log;
 done
 
 # 3.1 Combine all the CDS into one file for clustering
 cat  "${prokka_output_dir}"/*_prokka/*pred_prokka.faa > "${prokka_output_dir}"/all_proteins.faa
 # There are 3771950 predicted CDS in total.
 grep ">" "${prokka_output_dir}"/all_proteins.faa | \
- awk ' { count++ }
-    END {print "There are " count " predicted CDS in total." }
+    awk ' { count++ }
+        END {print "There are " count " predicted CDS in total." }
     '  
 
 # 3.2 Filter proteins by length: >=100 bp (i.e. 33 aa).
 conda deactivate
 conda activate qc-tools
 seqkit seq -m 33  "${prokka_output_dir}"/all_proteins.faa > \
- "${prokka_output_dir}"/all_proteins_filtered.faa
+    "${prokka_output_dir}"/all_proteins_filtered.faa
 
 # There are 3764752 predicted proteins >=100 bp (i.e. 33 aa).
 grep ">" "${prokka_output_dir}"/all_proteins_filtered.faa | \
@@ -89,22 +77,20 @@ conda deactivate
 conda activate mag_assembly-tools
 
 # 4. Remove redundant proteins with MMseqs2
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running MMseqs2"
 # mmseqs module input_db output_db args [options]
 # cluster the proteins with the criteria of identity ≥95% and overlap ≥90%. 
 # Need to create output directory first
 mkdir -p "${mmseqs_easy_cluster_output_dir}"/
 mmseqs easy-cluster "${prokka_output_dir}"/all_proteins_filtered.faa \
- "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot \
- "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_temp \
- --min-seq-id 0.95 \
- -c 0.9 \
- --cov-mode 0 \
- --threads "${nthreads_prokka}" 2>&1 |tee "${mmseqs_easy_cluster_output_dir}"/mmseqs_easy_cluster.log
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+    "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot \
+    "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_temp \
+    --min-seq-id 0.95 \
+    -c 0.9 \
+    --cov-mode 0 \
+    --threads "${nthreads_prokka}" 2>&1 |tee "${mmseqs_easy_cluster_output_dir}"/mmseqs_easy_cluster.log
+echo "$(date +"%F %H:%M:%S")"
 
 # 4.1 There are 1922857 nonredundant predicted proteins in total.
 grep ">" "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta | \
@@ -121,16 +107,15 @@ conda activate dbcan-tools
 # run_dbcan -h
 
 echo "Running dbCAN on nonredundant gene catalog"
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 run_dbcan "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta \
-   protein \
-   --out_dir "${dbcan_output_dir}"/nr_dbcan_proteins \
-   --db_dir data/dbcan_db \
-   --dia_cpu "${nthreads_annotation}" \
-   --hmm_cpu "${nthreads_annotation}" \
-   --stp_cpu "${nthreads_annotation}" \
-   2>&1 |tee "${dbcan_logs_dir}"/nr_dbcan.log
+    protein \
+    --out_dir "${dbcan_output_dir}"/nr_dbcan_proteins \
+    --db_dir data/dbcan_db \
+    --dia_cpu "${nthreads_annotation}" \
+    --hmm_cpu "${nthreads_annotation}" \
+    --stp_cpu "${nthreads_annotation}" \
+    2>&1 |tee "${dbcan_logs_dir}"/nr_dbcan.log
 Rename the output file for comprehension
 cp "${dbcan_output_dir}"/nr_dbcan_proteins/overview.txt \
   "${dbcan_output_dir}"/nr_dbcan_proteins/nr_dbcan_overview.txt 
@@ -155,37 +140,35 @@ conda deactivate
 
 # 6. Run KofamScan to predict KEGG orthologs
 # conda activate mag_assembly-tools
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running KofamScan"
 mkdir -p "${kofam_scan_output_dir}"/tmp_dir
-~/kofamscan/bin/kofam_scan-1.3.0/exec_annotation \
-  -o "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt \
-  -p ~/kofamscan/db/profiles \
-  -k ~/kofamscan/db/ko_list \
-  --tmp-dir "${kofam_scan_output_dir}"/tmp_dir \
-  --cpu "${nthreads_annotation}" \
-  -f detail-tsv \
-  "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+$HOME/kofamscan/bin/kofam_scan-1.3.0/exec_annotation \
+    -o "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt \
+    -p $HOME/kofamscan/db/profiles \
+    -k $HOME/kofamscan/db/ko_list \
+    --tmp-dir "${kofam_scan_output_dir}"/tmp_dir \
+    --cpu "${nthreads_annotation}" \
+    -f detail-tsv \
+    "${mmseqs_easy_cluster_output_dir}"/prokka_nr_prot_rep_seq.fasta
+echo "$(date +"%F %H:%M:%S")"
 
 # The first field has asterisks, so we don't use it.
 # Remove entries where threshold is empty or score is less than threshold. Then, sort by score and evalue
 awk 'BEGIN {FS=OFS="\t"} 
-  FNR>2{
-    gene = $2;
-    ko = $3;
-    threshold = $4;
-    score = $5;
-    evalue = $6;
-    ko_def = $7;
-    if ((threshold !="") && (score > threshold)) {print gene, ko, threshold, score, evalue, ko_def}
-    
-}' "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt | \
-  sort -t$'\t' -k1,1 -k4,4nr -k5,5g | awk '!seen[$1]++' | \
-  awk 'BEGIN {FS=OFS="\t"; print "gene_name","ko","threshold","score","evalue","ko_definition"} {print}' > \
-   "${kofam_scan_output_dir}"/nr_prot_kofam_scan_top_hits.txt
+    FNR>2{
+        gene = $2;
+        ko = $3;
+        threshold = $4;
+        score = $5;
+        evalue = $6;
+        ko_def = $7;
+        if ((threshold !="") && (score > threshold)) {print gene, ko, threshold, score, evalue, ko_def}
+        
+    }' "${kofam_scan_output_dir}"/nr_prot_kofam_scan.txt | \
+    sort -t$'\t' -k1,1 -k4,4nr -k5,5g | awk '!seen[$1]++' | \
+    awk 'BEGIN {FS=OFS="\t"; print "gene_name","ko","threshold","score","evalue","ko_definition"} {print}' > \
+    "${kofam_scan_output_dir}"/nr_prot_kofam_scan_top_hits.txt
 
 
 # #######

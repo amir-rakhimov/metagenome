@@ -2,10 +2,12 @@
 #include <omp.h>
 #include <stdio.h>
 export OMP_NUM_THREADS=49
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate kraken2-tools-2.1.6
+set -euo pipefail
+shopt -s nullglob
+source config/bash/config.sh
 
-#I am requesting 4 nodes containing 49 CPUs, with 8 GB memory per CPU. Total: 392 GB
-######
 # This script performs the following:
 # 1. Downloads NCBI taxonomy for the reference database. 
 
@@ -19,7 +21,6 @@ source ~/miniconda3/etc/profile.d/conda.sh
 # genome path is `~/common_data/reference_genomes/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna`.
 
 # 4. Builds the Kraken2 reference database in the same directory as the previous output
-conda activate kraken2-tools-2.1.6
 
 intermediate_date_time=$(date +"%F %H:%M:%S")
 echo "${intermediate_date_time}"
