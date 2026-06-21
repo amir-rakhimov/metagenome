@@ -36,21 +36,13 @@
 library(tidyverse)
 library(microViz)
 library(phyloseq)
-#' Directories with input files:
-rdafiles.directory<-"./output/rdafiles"
-rtables.directory<-"./output/rtables"
 
-#' Directory with metadata:
-# metadatadir<-paste0("../amplicon_nmr/data/metadata/pooled-metadata/") 
-metadatadir<-paste0("../amplicon_nmr/output/rdafiles") 
+source(here::here("config/R/config.R"))# config file with global variables
 
 #+ echo=FALSE
 ## 2. Import the combined report from Kraken2. #### 
 #'
 #' ## Import the combined report from Kraken2.
-combined.report.date_time<-"20240515_10_04_04"
-combined.report.filename<-file.path(rtables.directory,
-                                    paste(combined.report.date_time,"combined_report.tsv",sep = "_"))
 combined.report<-read.table(combined.report.filename, 
             header = T, 
             sep = "\t",
