@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
-#SBATCH -t 360:00:00
-#SBATCH -N 4
-#SBATCH -n 40
-#SBATCH --mem-per-cpu 8g
-#SBATCH -J 20250515_11-06-mag_assembly
-#SBATCH --output jobreports/20250515_11-06-mag_assembly-megahit-metabat2-pipeline-out.txt
-#SBATCH --error jobreports/20250515_11-06-mag_assembly-megahit-metabat2-pipeline-out.txt
-#I am requesting 4 nodes containing 40 CPUs, with 8 GB memory per CPU. Total: 320 GB. 280 GB for GTDB-TK
-source ~/miniconda3/etc/profile.d/conda.sh
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate mag_assembly-tools
+set -euo pipefail
 shopt -s nullglob
+source config/bash/config.sh
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -19,36 +14,28 @@ shopt -s nullglob
 # Bam file where either of the paired reads were mapped is sorted. All BAM and SAM files are compressed with gzip.
 # Main final output: directories with contigs for each sample (one FASTA files with all contigs), BAM files with mapped 
 # and unmapped reads, sorted BAM files where either read is mapped to contigs.
-date_var=$(date -I|sed 's/-//g')
-time_var=$(date +%T |sed 's/:/_/g' )
-date_time=${date_var}_${time_var}
-start_date_time=$(date +"%F %H:%M:%S")
-
-# 0. Show the current time for logging
-echo "${start_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 
 # 1. Activate conda environment
-conda activate mag_assembly-tools
 
 # megahit --test  # run on a toy dataset
 # 2. Assemble reads into contigs with MegaHIT. megahit command generates a directory {sample}.megahit_asm 
 # which contains checkpoints.txt, done, final.contigs.fa, intermediate_contig/, log, options.json. 
 # We rename the final.contigs.fa to add sample name and date
 echo "Starting MegaHIT"
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
- base_name=$(basename "$SAMPLE" )
- echo "Running MegaHIT on ${base_name}"
- megahit \
-    -1 "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R1.fastq.gz \
-    -2 "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R2.fastq.gz \
-    -o "${megahit_output_dir}"/"${base_name}".megahit_asm \
-    -t "${nthreads_megahit}" 2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_megahit.log
- mv "${megahit_output_dir}"/"${base_name}".megahit_asm/final.contigs.fa \
-  "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa;
+    SAMPLE=$(echo "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
+    base_name=$(basename "$SAMPLE" )
+    echo "Running MegaHIT on ${base_name}"
+    megahit \
+        -1 "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R1.fastq.gz \
+        -2 "${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R2.fastq.gz \
+        -o "${megahit_output_dir}"/"${base_name}".megahit_asm \
+        -t "${nthreads_megahit}" 2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_megahit.log
+    mv "${megahit_output_dir}"/"${base_name}".megahit_asm/final.contigs.fa \
+    "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa;
 done
 
 # --k-min : minimum kmer size (<= 255), must be odd number [default 21] 
@@ -61,18 +48,17 @@ done
 # Tip 3. smaller --k-step, say 10, is more friendly to low-coverage datasets
 
 # 3. Contig QC with QUAST
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE_DIR in "${megahit_output_dir}"/*megahit_asm
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
- base_name=$(basename "$SAMPLE" )
- echo "Running MetaQuast on ${base_name}" 
- "${metaquast_script_dir}"/metaquast.py \
-    "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa  \
-    -o "${metaquast_megahit_output_dir}"/metaquast_megahit_"${base_name}" \
-    --threads "${nthreads_megahit}" \
-    2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_metaquast_megahit.log;
+    SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
+    base_name=$(basename "$SAMPLE" )
+    echo "Running MetaQuast on ${base_name}" 
+    "${metaquast_script_dir}"/metaquast.py \
+        "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa  \
+        -o "${metaquast_megahit_output_dir}"/metaquast_megahit_"${base_name}" \
+        --threads "${nthreads_megahit}" \
+        2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_metaquast_megahit.log;
 done
 # General usage:
 #     python metaquast.py contigs_1 contigs_2 ... -r reference_1,reference_2,reference_3,...
@@ -88,57 +74,54 @@ conda activate qc-tools
 
 # 4.1 Align reads with bbwrap.sh:
 # Then, convert file _mapped_and_unmapped.sam to _mapped_and_unmapped.bam (samtools view -b)
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE_DIR in "${megahit_output_dir}"/*megahit_asm
 do 
- SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" )
- base_name=$(basename "$SAMPLE" )
- echo "Running bbwrap.sh on ${base_name}"
- mkdir -p "${bbwrap_refs_dir}"/"${base_name}"_refs
- bbwrap.sh ref="${FILE_DIR}"/"${base_name}"_final.contigs.fa \
-    in="${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R1.fastq.gz \
-    in2="${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R2.fastq.gz \
-    out="${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.sam \
-    kfilter=22 \
-    subfilter=15 \
-    path="${bbwrap_refs_dir}"/"${base_name}"_refs \
-    maxindel=80 2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_bbwrap.log
- echo "Running samtools view -b on ${base_name}"
- samtools view -b "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.sam.gz > \
-    "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
-    2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_samtools.log;
+    SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" )
+    base_name=$(basename "$SAMPLE" )
+    echo "Running bbwrap.sh on ${base_name}"
+    mkdir -p "${bbwrap_refs_dir}"/"${base_name}"_refs
+    bbwrap.sh ref="${FILE_DIR}"/"${base_name}"_final.contigs.fa \
+        in="${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R1.fastq.gz \
+        in2="${bowtie2_decontam_fastq_dir}"/"${base_name}"_trim_decontam_R2.fastq.gz \
+        out="${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.sam \
+        kfilter=22 \
+        subfilter=15 \
+        path="${bbwrap_refs_dir}"/"${base_name}"_refs \
+        maxindel=80 2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_bbwrap.log
+    echo "Running samtools view -b on ${base_name}"
+    samtools view -b "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.sam.gz > \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
+        2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_samtools.log;
 done
 
 # 4.2 Output per contig coverage to cov.txt with pileup.sh:
 # BBMap generates coverage information by internally using Pileup
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE in "${megahit_aligned_reads_dir}"/*_mapped_and_unmapped.bam
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
- base_name=$(basename "$SAMPLE" )
- echo "Running pileup.sh on ${base_name}"
- pileup.sh in="${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
-    out="${contig_coverages_dir}"/"${base_name}"_cov.txt \
-    2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_pileup.log;
+    SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
+    base_name=$(basename "$SAMPLE" )
+    echo "Running pileup.sh on ${base_name}"
+    pileup.sh in="${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
+        out="${contig_coverages_dir}"/"${base_name}"_cov.txt \
+        2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_pileup.log;
 done
 
 
 # 4.3 Extract unmapped reads (SE to unmapped.se.fq and PE to unmapped.pe.fq) (samtools view -u -f4)
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE in "${megahit_aligned_reads_dir}"/*_mapped_and_unmapped.bam
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam\//")
- base_name=$(basename "$SAMPLE" )
- echo "Running samtools bam2fq on ${base_name}"
- samtools view -u -f4 "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam | \
-    samtools bam2fq -s "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.se.fq - > \
-    "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.pe.fq \
-    2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_samtools.log
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.se.fq
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.pe.fq;
+    SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam\//")
+    base_name=$(basename "$SAMPLE" )
+    echo "Running samtools bam2fq on ${base_name}"
+    samtools view -u -f4 "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam | \
+        samtools bam2fq -s "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.se.fq - > \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.pe.fq \
+        2>&1 |tee "${megahit_logs_dir}"/"${base_name}"_samtools.log
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.se.fq
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped.pe.fq;
 done
 
 # samtools view – views and converts SAM/BAM/CRAM files
@@ -157,8 +140,7 @@ done
 #    which can then be captured or saved to a file as needed.
 
 # tee -a appends instead of overwriting 
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 ## 4.4 Keep mapped reads then sort
 # To get only the mapped reads use the parameter F, which works like -v of grep and skips the 
 # alignments for a specific flag (samtools view -b -F 4).
@@ -166,18 +148,18 @@ echo "${intermediate_date_time}"
 # (samtools sort -m)
 for FILE in "${megahit_aligned_reads_dir}"/*_mapped_and_unmapped.bam
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam\.gz//")
- base_name=$(basename "$SAMPLE" )
- echo "Running samtools view -b -F 4 on ${base_name}"
- samtools view -b -F 4 \
-   "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
-   > "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam \
-   2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log
- echo "Running samtools sort on ${base_name}"
- samtools sort -m "${mem_req_megahit_sort}" -@ "${nthreads_megahit_sort}" \
-   "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam \
-   -o "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam \
-   2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
+    SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam\.gz//")
+    base_name=$(basename "$SAMPLE" )
+    echo "Running samtools view -b -F 4 on ${base_name}"
+    samtools view -b -F 4 \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
+        > "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam \
+        2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log
+    echo "Running samtools sort on ${base_name}"
+    samtools sort -m "${mem_req_megahit_sort}" -@ "${nthreads_megahit_sort}" \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam \
+        -o "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped_sorted.bam \
+        2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
 done
 
 # This line is only if you need to sort selected samples
@@ -203,28 +185,27 @@ done
 # Then, sort _bothReadsUnmapped.bam file by read name ( -n ) to have paired reads next to each other 
 ### ("${nthreads_megahit}" parallel threads, each using up to 5G memory) (samtools sort)
 # Finally, split paired-end reads into separated fastq files .._R1 .._R2 (samtools fastq)
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE in "${megahit_aligned_reads_dir}"/*mapped_and_unmapped.bam 
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
- base_name=$(basename "$SAMPLE" )
- echo "Running samtools view -b -f 12 -F 256 on ${base_name}" 
- samtools view -b -f 12 -F 256 \
-   "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
-   > "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam \
-   2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log
- echo "Running samtools sort -n and fastq on ${base_name}"
- samtools sort -n -m "${mem_req_megahit_sort}" -@ "${nthreads_megahit_sort}" \
-   "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam \
-   -o "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam \
-   2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
- samtools fastq -@ "${nthreads_megahit_sort}" \
-   "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam \
-   -1 "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped_R1.fastq.gz \
-  	-2 "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped_R2.fastq.gz \
-  	-0 /dev/null -s /dev/null -n \
-   2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
+    SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
+    base_name=$(basename "$SAMPLE" )
+    echo "Running samtools view -b -f 12 -F 256 on ${base_name}" 
+    samtools view -b -f 12 -F 256 \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam \
+        > "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam \
+        2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log
+    echo "Running samtools sort -n and fastq on ${base_name}"
+    samtools sort -n -m "${mem_req_megahit_sort}" -@ "${nthreads_megahit_sort}" \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam \
+        -o "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam \
+        2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
+    samtools fastq -@ "${nthreads_megahit_sort}" \
+        "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam \
+        -1 "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped_R1.fastq.gz \
+            -2 "${megahit_aligned_reads_dir}"/"${base_name}"_unmapped_R2.fastq.gz \
+            -0 /dev/null -s /dev/null -n \
+        2>&1 |tee -a "${megahit_logs_dir}"/"${base_name}"_samtools.log;
 done
 ###-f  12    # Extract only ( -f ) alignments with both reads unmapped: <read unmapped><mate unmapped>
 ###-F 256    # Do not (  -F  ) extract alignments which are: <not primary alignment>
@@ -238,17 +219,15 @@ done
 #  depending on the command invoked
 
 # 4.6 Compress bam and sam files to save space
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 for FILE in "${megahit_aligned_reads_dir}"/*_mapped_and_unmapped.bam
 do 
- SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
- base_name=$(basename "$SAMPLE" )
- echo "gzipping ${base_name}"
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam
- gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam;
+    SAMPLE=$(echo "${FILE}" | sed "s/_mapped_and_unmapped\.bam//" )
+    base_name=$(basename "$SAMPLE" )
+    echo "gzipping ${base_name}"
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_either_read_mapped.bam
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped.bam
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_bothReadsUnmapped_sorted.bam
+    gzip -9 --best "${megahit_aligned_reads_dir}"/"${base_name}"_mapped_and_unmapped.bam;
 done
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
