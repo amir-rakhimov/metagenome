@@ -68,7 +68,7 @@ source config/bash/config.sh
 
 # Output: FASTA files with reads that were mapped to selected taxa, saved in the 
 # `output/kraken2_pipeline/kraken2_filtered_reads` directory. The output file name format is
-# `"${date_time}"_"${sample_name}"_taxid_"${taxid}"_R"${readnum}".fasta` where
+# `"${sample_name}"_taxid_"${taxid}"_R"${readnum}".fasta` where
 # `taxid` is the number corresponding to NCBI taxonomic ID of a selected species, and 
 # `readnum` is read file number (`1` or `2`) where the sequence was found.
 
@@ -80,7 +80,7 @@ source config/bash/config.sh
 
 # Output: TXT files with taxonomic classification from BLAST on selected species, saved
 # in the `output/kraken2_pipeline/blast_output` directory. The output file name format is
-# `"${date_time}"_"${sample_name}"_R"${readnum}"_blast_out.txt`
+# `"${sample_name}"_R"${readnum}"_blast_out.txt`
 
 ######
 
@@ -113,10 +113,7 @@ source config/bash/config.sh
 ### directory with database and taxonomy
 # kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date} 
 
-echo "${start_date_time}"
-
-
-
+echo "$(date +"%F %H:%M:%S")"
 # 1. Remove host DNA with bowtie2 (done)
 
 # 2. Classify microbiome samples using Kraken2
@@ -136,15 +133,13 @@ echo "${start_date_time}"
 # instead of gzip -9 --best ${kraken2_output_dir}/${base_name}_no_minimizer_data.kraken2
 # And tee command will be tee kraken2_stdout.txt
 # instead of tee kraken2_stdout_no_minimizer_data.txt
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running kraken2"
 for FILE in ${bowtie2_decontam_fastq_dir}/*decontam_R1.fastq.gz
 do 
  SAMPLE=$(echo ${FILE} | sed "s/_trim_decontam_R1\.fastq\.gz//")
  base_name=$(basename "$SAMPLE" )
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
+ echo "$(date +"%F %H:%M:%S")"
  echo "Running kraken2 on ${SAMPLE}"
  kraken2 --paired \
 	--db ${kraken2_db_dir} \
@@ -201,15 +196,13 @@ done  2>&1 |tee kraken2_stdout_no_minimizer_data.txt
 # instead of gzip -9 --best ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report
 # And tee command will be tee bracken_stdout.txt
 # instead of tee bracken_stdout_no_minimizer_data.txt
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Running bracken"
 for FILE in ${kraken2_reports_dir}/*_no_minimizer_data.k2report
 do 
   SAMPLE=$(echo ${FILE} | sed "s/\.k2report//"| sed "s/_no_minimizer_data//")
   base_name=$(basename "$SAMPLE" )
-  intermediate_date_time=$(date +"%F %H:%M:%S")
-  echo "${intermediate_date_time}"
+  echo "$(date +"%F %H:%M:%S")"
   echo "Running bracken on ${SAMPLE}"
   bracken -d ${kraken2_db_dir} \
 	-i ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report \
@@ -243,8 +236,7 @@ done 2>&1 |tee bracken_stdout_no_minimizer_data.txt
 #base_name:file
 
 # 4. Generate Krona plots
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+echo "$(date +"%F %H:%M:%S")"
 echo "Generating Krona plots"
 for FILE in ${bracken_reports_dir}/*.breport
 do 
@@ -265,9 +257,8 @@ done
 ### -o
 
 # Tidy up the bracken report
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
-for FILE in "${bracken_krona_txt_dir}"/"${date_time}"_*_trim_no_minimizer_data.b.krona.txt
+echo "$(date +"%F %H:%M:%S")"
+for FILE in "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.b.krona.txt
  do
  # Extract the sample name
  SAMPLE=$(basename "${FILE}" | sed "s/\.b.krona.txt//"  | sed "s/_trim_no_minimizer_data//")
@@ -298,16 +289,15 @@ for FILE in "${bracken_krona_txt_dir}"/"${date_time}"_*_trim_no_minimizer_data.b
 
 		print sample_name, abundance,  kingdom, phylum, class, order, family, genus, species
 	}
- ' "${bracken_krona_txt_dir}"/"${date_time}"_"${SAMPLE}"_trim_no_minimizer_data.b.krona.txt > \
-	"${bracken_krona_txt_dir}"/"${date_time}"_"${SAMPLE}"_trim_no_minimizer_data.tsv
+ ' "${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.b.krona.txt > \
+	"${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.tsv
 done
 
-awk 'FNR>1' "${bracken_krona_txt_dir}"/"${date_time}"_*_trim_no_minimizer_data.tsv | \
+awk 'FNR>1' "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.tsv | \
 	awk 'BEGIN {FS=OFS="\t";
 		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"}
-		{print}' > output/rtables/"${date_time}"_combined_report.tsv
-intermediate_date_time=$(date +"%F %H:%M:%S")
-echo "${intermediate_date_time}"
+		{print}' > "${kraken2_OUTDIR}"/combined_report.tsv
+echo "$(date +"%F %H:%M:%S")"
 
 # Analyse specific sequences
 # Cryptomeria japonica: taxid 3369
@@ -316,7 +306,7 @@ echo "${intermediate_date_time}"
 # Macadamia integrifolia: taxid 60698
 
 # # 1. Extract reads that were mapped to selected taxid
-# for FASTQ_FILE in "${kraken2_classified_reads_dir}"/"${date_time}"_*_classified__1.fq.gz
+# for FASTQ_FILE in "${kraken2_classified_reads_dir}"/*_classified__1.fq.gz
 # do 
 #   SAMPLE=$(echo "${FASTQ_FILE}" | sed "s/_classified__1\.fq\.gz//" )
 #   base_name=$(basename "$SAMPLE" )
@@ -325,11 +315,11 @@ echo "${intermediate_date_time}"
 #   do
 # 	for readnum in 1 2
 # 	do
-#       zcat "${kraken2_classified_reads_dir}"/"${date_time}"_"${base_name}"_classified__"${readnum}".fq.gz |\
+#       zcat "${kraken2_classified_reads_dir}"/"${base_name}"_classified__"${readnum}".fq.gz |\
 # 	    grep --no-group-separator -A 1 -E "@.*kraken:taxid\|$taxid$" | sed "s/@/>/" > \
-# 	    "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta
+# 	    "${kraken2_filtered_reads_dir}"/"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta
 #     #   gzip -9 --best \
-# 	#     "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta;
+# 	#     "${kraken2_filtered_reads_dir}"/"${base_name}"_taxid_"${taxid}"_R"${readnum}".fasta;
 # 	done
 #   done
 # done
@@ -429,7 +419,7 @@ echo "${intermediate_date_time}"
 # # btop means Blast traceback operations (BTOP) (Similar to CIGAR format in SAM, but more flexible)
 
 # # Don't use btop because the output file size will be too big
-# for FASTA_FILE in "${kraken2_filtered_reads_dir}"/"${date_time}"_*_taxid_*_R1.fasta
+# for FASTA_FILE in "${kraken2_filtered_reads_dir}"/*_taxid_*_R1.fasta
 # do 
 #   SAMPLE=$(echo "${FASTA_FILE}" | sed "s/_R1\.fasta//")
 #   base_name=$(basename "$SAMPLE" )
@@ -437,8 +427,8 @@ echo "${intermediate_date_time}"
 #     do
 # 	  echo "Running BLAST on ${SAMPLE}_R${readnum}"
 # 	  blastn -db "${blast_database_path}" \
-# 	    -query "${kraken2_filtered_reads_dir}"/"${date_time}"_"${base_name}"_R"${readnum}".fasta \
-# 		-out "${blast_output_dir}"/"${date_time}"_"${base_name}"_R"${readnum}"_blast_out.txt \
+# 	    -query "${kraken2_filtered_reads_dir}"/"${base_name}"_R"${readnum}".fasta \
+# 		-out "${blast_output_dir}"/"${base_name}"_R"${readnum}"_blast_out.txt \
 # 		-outfmt "7 qacc sacc pident mismatch gapopen qstart qend sstart send evalue bitscore";
 # 	done
 # done
