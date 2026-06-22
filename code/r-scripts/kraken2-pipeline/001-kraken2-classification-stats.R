@@ -21,7 +21,10 @@
 # install.packages(c("tidyverse"))
 library(tidyverse)
 source(here::here("config/R/config.R"))# config file with global variables
-kraken2.results<-read.table(kraken2.unclassified.stats,header = T)
+dir.create(community.composition.tables,recursive = TRUE)
+dir.create(community.composition.rdafiles,recursive = TRUE)
+dir.create(community.composition.figures,recursive = TRUE)
+kraken2.results<-read.table(kraken2.unclassified.stats.fname,header = T)
 kraken2.results<-kraken2.results%>%
   mutate(ClassifiedRate=Classified/Total*100)%>%
   mutate(meanClassifiedRate=round(mean(ClassifiedRate)))%>%
@@ -29,6 +32,12 @@ kraken2.results<-kraken2.results%>%
 knitr::kable(kraken2.results, format = "simple")%>%
   print()
 
-# write.table(kraken2.results,file.path("./output/rtables",
-#                       paste(date_time,"kraken2-classification-stats.tsv",
-#                             sep="_")),row.names = F,quote = F,sep = "\t")
+classification.stats.fname <- file.path(community.composition.tables,
+                                        "kraken2-classification-stats.tsv")
+if (! file.exists(classification.stats.fname)){
+  write.table(kraken2.results, classification.stats.fname,
+              row.names = F,quote = F,sep = "\t")
+}
+sessionInfo()
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
+gc()
