@@ -31,59 +31,12 @@ library(data.table)
 ## 2. Load data. ####
 #'
 #' ## Load data.
-#' First, statistics from seqkit.
-#' Seqkit stats on MEGAHIT data
-seqkit.megahit.date_time<-"20250712_18_07_37"
-#' Seqkit stats on dereplicated MAGs
-seqkit.drep.date_time<-"20250712_18_07_37"
-#' Seqkit stats on MetaBAT2 data
-seqkit.metabat2.date_time<-"20250712_18_07_37"
-#' Next, taxonomy tables.
-#' BLASTN output
-blastn.date_time<-"20250701_05_24_10"
-#' GTDB-tk output
-gtdbtk.date_time<-"20250705_19_24_02"
-# MetaBAT2 output to clean up GTDB-tk genome names:
-metabat2.date_time<-"20250612_13_37_47"
-#' MAG and contig coverages from CoverM 
-coverm.drep.date_time<-"20250803_05_07_53"
-coverm.metabat2.date_time<-"20250803_05_07_53"
-coverm.megahit.date_time<-"20250803_05_07_53"
-#' Directories with input files
-seqkit.output.dir<-"./output/mag_assembly/seqkit_output"
-blastn.output.dir<-file.path("./output/mag_assembly/blastn_output",
-                             blastn.date_time)
-gtdbtk.output.dir<-file.path("output/mag_assembly/gtdbtk_output")
-coverm.output.dir<-file.path("output/mag_assembly/coverm_output")
-# Specify input file names
-seqkit.megahit.fname<-file.path(seqkit.output.dir,
-                                    paste(seqkit.megahit.date_time,
-                                          "megahit_combined_stats.tsv",sep="_"))
-seqkit.drep.fname<-file.path(seqkit.output.dir,
-                                 paste(seqkit.drep.date_time,
-                                       "sa_95perc_combined_stats.tsv",sep="_"))
-seqkit.metabat2.fname<-file.path(seqkit.output.dir,
-                                    paste(seqkit.metabat2.date_time,
-                                          "metabat2_combined_stats.tsv",sep="_"))
-blastn.taxonomy.fname<-file.path(blastn.output.dir,
-                                    paste(blastn.date_time,
-                                          "blastn_all_samples.tsv",sep="_"))
-gtdbtk.taxonomy.fname<-file.path(gtdbtk.output.dir,
-                                    paste(gtdbtk.date_time,
-                                          "sa_95perc_classification_combined.tsv",
-                                          sep="_"))
-coverm.drep.fname<-file.path(coverm.output.dir,
-                            paste(coverm.drep.date_time,
-                                  "all_samples_sa_95perc_coverm.tsv",
-                                  sep="_"))
-coverm.metabat2.fname<-file.path(coverm.output.dir,
-                            paste(coverm.metabat2.date_time,
-                                  "all_samples_bins_coverm.tsv",
-                                  sep="_"))
-coverm.megahit.fname<-file.path(coverm.output.dir,
-                            paste(coverm.megahit.date_time,
-                                  "all_samples_megahit_coverm.tsv",
-                                  sep="_"))
+source(here::here("config/R/config.R"))# config file with global variables
+source(here::here("config/R/themes.R"))# config file with themes
+dir.create(file.path(mag.rdafiles),recursive = TRUE)
+dir.create(file.path(mag.tables),recursive = TRUE)
+dir.create(file.path(mag.figures),recursive = TRUE)
+
 #+ echo=FALSE
 ## 3. Read the seqkit stats. ####
 #'
@@ -92,18 +45,30 @@ coverm.megahit.fname<-file.path(coverm.output.dir,
 seqkit.megahit.df<-data.table::fread(seqkit.megahit.fname,
                                      header = TRUE,
                               sep="\t")%>%
-  as_tibble()
+  as_tibble()%>%
+  rename("sample_id" = "sample")
 #' Seqkit on MetaBAT2
 seqkit.metabat2.df<-read.table(seqkit.metabat2.fname,header = TRUE,
                               sep="\t",comment.char = "")%>%
-  as_tibble()
+  as_tibble()%>%
+  rename("sample_id" = "sample")
 #' Seqkit on dRep
 seqkit.drep.df<-read.table(seqkit.drep.fname,header = TRUE,
                               sep="\t",comment.char = "")%>%
-  as_tibble()
-head(seqkit.megahit.df)
-head(seqkit.metabat2.df)
-head(seqkit.drep.df)
+  as_tibble()%>%
+  rename("sample_id" = "sample")
+head(seqkit.megahit.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+head(seqkit.metabat2.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+head(seqkit.drep.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 #' 3118148 contigs from MEGAHIT
 nrow(seqkit.megahit.df)
 #' 156182 contigs from MetaBAT2
@@ -122,39 +87,44 @@ summary(seqkit.drep.df)
 #' bins weren't because they had low quality.
 #' We need it to get a more precise estimate of mapped reads. 
 #' Read the data with all high-quality MAGs and their clusters
-drep.clusters.fname<-paste0("./output/mag_assembly/drep_output/",
-                            "20250627_19_56_42_sa_95perc/data_tables/Cdb.csv")
 drep.clusters<-read.csv(drep.clusters.fname)%>%
   as_tibble()%>%
   mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome),
          genome=gsub(".fa","",genome))%>%
-  separate_wider_delim(genome,delim = "_bin.",names = c("sample","bin_id"))%>%
+  separate_wider_delim(genome,delim = "_bin.",names = c("sample_id","bin_id"))%>%
   mutate(bin_id=as.integer(bin_id))
-head(drep.clusters)
+head(drep.clusters)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 #' Read the data with representative genomes and their clusters
-drep.winning_genomes.fname<-paste0("./output/mag_assembly/drep_output/",
-                                   "20250627_19_56_42_sa_95perc/data_tables/Wdb.csv")
 drep.winning_genomes<-read.csv(drep.winning_genomes.fname)%>%
   as_tibble()%>%
   mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome),
          genome=gsub(".fa","",genome))%>%
-  separate_wider_delim(genome,delim = "_bin.",names = c("sample","bin_id"))%>%
+  separate_wider_delim(genome,delim = "_bin.",names = c("sample_id","bin_id"))%>%
   mutate(bin_id=as.integer(bin_id))
-head(drep.winning_genomes)
+head(drep.winning_genomes)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 #' Combine drep MAGs with other checkm2 MAGs
 drep.clusters.joined<-drep.winning_genomes%>%
-  select(sample,bin_id,cluster)%>%
+  select(sample_id,bin_id,cluster)%>%
   rename("secondary_cluster" = "cluster",
-         "drep_sample"= "sample",
+         "drep_sample"= "sample_id",
          "drep_bin_id"= "bin_id")%>%
-  full_join(drep.clusters[,c("sample","bin_id","secondary_cluster")],
+  full_join(drep.clusters[,c("sample_id","bin_id","secondary_cluster")],
             join_by("secondary_cluster"))%>%
   # Add a column that shows if a bin is representative or not.
   # Then, remove drep_sample and drep_bin_id because it's the same information
-  mutate(is_drep_bin=ifelse(sample==drep_sample&bin_id==drep_bin_id,
+  mutate(is_representative_bin=ifelse(sample_id==drep_sample&bin_id==drep_bin_id,
                             TRUE,FALSE))%>%
   select(-drep_sample,-drep_bin_id)
-head(drep.clusters.joined)
+head(drep.clusters.joined)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 
 rm(drep.clusters)
 rm(drep.clusters.fname)
@@ -165,11 +135,20 @@ rm(drep.winning_genomes.fname)
 #'
 #' ### Join cluster information with seqkit stats.
 seqkit.drep.df<-seqkit.drep.df%>%
-  left_join(drep.clusters.joined,by = join_by(sample, bin_id))
+  left_join(drep.clusters.joined,by = join_by(sample_id, bin_id))
 
-seqkit.metabat2.df<-seqkit.metabat2.df%>%
-  left_join(drep.clusters.joined,by = join_by(sample, bin_id))
-head(seqkit.drep.df)
+seqkit.metabat2.df <- seqkit.metabat2.df%>%
+  left_join(drep.clusters.joined,by = join_by(sample_id, bin_id))%>%
+  mutate(secondary_cluster = ifelse(is.na(secondary_cluster), "low_quality_mag",
+                                    secondary_cluster),
+         is_representative_bin = ifelse(is.na(is_representative_bin), "low_quality_mag",
+                                        is_representative_bin)
+         )
+  
+head(seqkit.drep.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 head(seqkit.metabat2.df)
 
 rm(drep.clusters.joined)
@@ -177,18 +156,27 @@ rm(drep.clusters.joined)
 ## 5. Combine all seqkit statistics into one table. ####
 #'
 #' ## Combine all seqkit statistics into one table.
-#' First, we create a column with each contig + its bin + sample.
-seqkit.metabat2.df<-seqkit.metabat2.df%>%
-  mutate(sample_contig=paste(sample,contig_id,sep = "_"),
-         sample_bin_contig=paste(sample,bin_id,contig_id,sep = "_"))
-seqkit.drep.df<-seqkit.drep.df%>%
-  mutate(sample_contig=paste(sample,contig_id,sep = "_"),
-         sample_bin_contig=paste(sample,bin_id,contig_id,sep = "_"))
-seqkit.megahit.df<-seqkit.megahit.df%>%
-  mutate(sample_contig=paste(sample,contig_id,sep = "_"))
-head(seqkit.drep.df)
-head(seqkit.metabat2.df)
-head(seqkit.megahit.df)
+#' First, we create a column with each contig + its bin + sample_id.
+seqkit.metabat2.df <- seqkit.metabat2.df%>%
+  mutate(sample_contig=paste(sample_id,contig_id,sep = "_"),
+         sample_bin_contig=paste(sample_id,bin_id,contig_id,sep = "_"))
+seqkit.drep.df <- seqkit.drep.df%>%
+  mutate(sample_contig=paste(sample_id,contig_id,sep = "_"),
+         sample_bin_contig=paste(sample_id,bin_id,contig_id,sep = "_"))
+seqkit.megahit.df <- seqkit.megahit.df%>%
+  mutate(sample_contig=paste(sample_id,contig_id,sep = "_"))
+head(seqkit.drep.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+head(seqkit.metabat2.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+head(seqkit.megahit.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 nrow(seqkit.drep.df)
 nrow(seqkit.metabat2.df)
 nrow(seqkit.megahit.df)
@@ -214,21 +202,20 @@ length(setdiff(seqkit.metabat2.df$sample_contig,
         seqkit.megahit.df$sample_contig))
 
 #' Finally combine the data:
-seqkit.all.df<-seqkit.megahit.df%>%
+seqkit.all.df <- seqkit.megahit.df %>%
   full_join(subset(seqkit.metabat2.df,select = -c(AT,GC,sample_contig,
                                                       contig_length)),
-            by = join_by(sample, contig_id))%>%
-  relocate(sample,contig_id,bin_id)%>%
-  # If sample_contig is in the vector of IDs common between MEGAHIT and 
-  # MetaBAT2 IDs, it was used in the assembly by MetaBAT2.
-  # If sample_bin_contig is in the vector of IDs common between MetaBAT2 and 
-  # drep, it was selected as representative.
-  mutate(source=ifelse(sample_contig%in%megahit.metabat2.common.ids,
-                       "metabat2","megahit"),
-         source=ifelse(sample_bin_contig%in%metabat2.drep.common.ids,
-                       "metabat2_drep",source))%>%
+            by = join_by(sample_id, contig_id))%>%
+  relocate(sample_id,contig_id,bin_id)%>%
+  # If bin_id, secondary_cluster, and is_representative_bin are NA, the contig was not assembled
+  mutate(bin_id = ifelse(is.na(bin_id), "unassembled", bin_id),
+         secondary_cluster = ifelse(is.na(secondary_cluster), "unassembled", secondary_cluster),
+         is_representative_bin = ifelse(is.na(is_representative_bin), "unassembled", is_representative_bin))%>%
   select(-sample_contig,-sample_bin_contig)
-head(seqkit.all.df)
+head(seqkit.all.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 nrow(seqkit.all.df)
 str(seqkit.all.df)
 summary(seqkit.all.df)
@@ -238,12 +225,14 @@ rm(metabat2.drep.common.ids)
 
 #' Barplot to count how many contigs were retained: most contigs weren't assembled
 seqkit.all.df%>%
-  count(sample,source)%>%
-  pivot_wider(names_from = "source",
-              values_from="n")
-seqkit.all.df%>%
-  ggplot(aes(x=sample,fill=source))+
-  geom_bar(stat="count")
+  mutate(assembly_status = ifelse(! secondary_cluster %in% c("low_quality_mag",
+                                                               "unassembled"),
+                                    "high_quality_mag", secondary_cluster))%>%
+  count(sample_id,assembly_status )%>%
+  # pivot_wider(names_from = "assembly_status",
+  #             values_from="n")%>%
+  ggplot(aes(x=sample_id,fill=assembly_status,y=n))+
+  geom_bar(stat="identity")
 rm(seqkit.drep.df)
 rm(seqkit.megahit.df)
 rm(seqkit.metabat2.df)
@@ -261,7 +250,10 @@ gtdbtk.taxonomy<-read.table(gtdbtk.taxonomy.fname,header = T,
                             sep="\t",comment.char = "")%>%
   as_tibble()%>%
   select(user_genome,classification) # remove unnecessary columns
-head(gtdbtk.taxonomy)
+head(gtdbtk.taxonomy)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 # 128 bins
 nrow(gtdbtk.taxonomy)
 
@@ -273,7 +265,7 @@ gtdbtk.taxonomy<-gtdbtk.taxonomy %>%
   mutate(classification=gsub(";s__$",";unclassified",classification))%>%
   mutate(classification=gsub("d__|p__|c__|o__|f__|g__|s__","",classification)) %>%
   mutate(user_genome=gsub(paste0(metabat2.date_time,"_"),"",user_genome))%>%
-  separate_wider_delim(user_genome,delim="_bin.",names=c("sample","bin_id"))%>%
+  separate_wider_delim(user_genome,delim="_bin.",names=c("sample_id","bin_id"))%>%
   mutate(bin_id=as.integer(bin_id))
 
 #+ echo=FALSE
@@ -283,35 +275,40 @@ gtdbtk.taxonomy<-gtdbtk.taxonomy %>%
 blastn.taxonomy<-read.table(blastn.taxonomy.fname,header = F,
                             sep="\t",comment.char = "")%>%
   as_tibble()
-head(blastn.taxonomy)
+head(blastn.taxonomy)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 # 1899 contigs
 nrow(blastn.taxonomy)
-colnames(blastn.taxonomy)<-c("sample","contig_id","silva_ref_id","perc_identity",
+colnames(blastn.taxonomy)<-c("sample_id","contig_id","silva_ref_id","perc_identity",
                              "alignment_length","bitscore","classification")
 
 #+ echo=FALSE
 ### 6.3 Join stats with taxonomy. ####
 #'
 #' ### Join stats with taxonomy.
-seqkit.with_taxonomy<-seqkit.all.df%>%
-  full_join(gtdbtk.taxonomy,
-            by = join_by(sample, bin_id))%>%
-  full_join(blastn.taxonomy[,c("sample","contig_id","classification")],
-            by = join_by(sample, contig_id))%>%
-  rename("gtdbtk_result"="classification.x",
-         "blastn_result"="classification.y")%>%
-  ### 6.4 Add column to show if a contig was classified, and which pipeline classified it ####
-  mutate(tax.classification.type=ifelse(!is.na(gtdbtk_result)&!is.na(blastn_result),
-                        "gtdbtk_and_blastn","unclassified"),
-         tax.classification.type=ifelse(!is.na(gtdbtk_result)&is.na(blastn_result),
-                        "gtdbtk_only",tax.classification.type),
-         tax.classification.type=ifelse(is.na(gtdbtk_result)&!is.na(blastn_result),
-                        "blastn_only",tax.classification.type))
-nrow(seqkit.with_taxonomy)
-head(seqkit.with_taxonomy)
-str(seqkit.with_taxonomy)
-summary(seqkit.with_taxonomy)
-rm(seqkit.all.df)
+
+###NOT NEEDED?
+# seqkit.with_taxonomy<-seqkit.all.df%>%
+#   full_join(gtdbtk.taxonomy,
+#             by = join_by(sample_id, bin_id))%>%
+#   full_join(blastn.taxonomy[,c("sample_id","contig_id","classification")],
+#             by = join_by(sample_id, contig_id))%>%
+#   rename("gtdbtk_result"="classification.x",
+#          "blastn_result"="classification.y")%>%
+#   ### 6.4 Add column to show if a contig was classified, and which pipeline classified it ####
+#   mutate(tax.classification.type=ifelse(!is.na(gtdbtk_result)&!is.na(blastn_result),
+#                         "gtdbtk_and_blastn","unclassified"),
+#          tax.classification.type=ifelse(!is.na(gtdbtk_result)&is.na(blastn_result),
+#                         "gtdbtk_only",tax.classification.type),
+#          tax.classification.type=ifelse(is.na(gtdbtk_result)&!is.na(blastn_result),
+#                         "blastn_only",tax.classification.type))
+# nrow(seqkit.with_taxonomy)
+# head(seqkit.with_taxonomy)
+# str(seqkit.with_taxonomy)
+# summary(seqkit.with_taxonomy)
+# rm(seqkit.all.df)
 
 #+ echo=FALSE
 ## 7. Add bin and contig coverages from CoverM. ####
@@ -325,7 +322,10 @@ coverm.drep.df<-read.table(coverm.drep.fname,header = T,
                            sep = "\t")%>%
   as_tibble()%>%
   mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome))
-head(coverm.drep.df)
+head(coverm.drep.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 nrow(coverm.drep.df)
 
 #+ echo=FALSE
@@ -336,7 +336,10 @@ coverm.metabat2.df<-read.table(coverm.metabat2.fname,header = T,
                                sep = "\t")%>%
   as_tibble()%>%
   mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome))
-head(coverm.metabat2.df)
+head(coverm.metabat2.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 nrow(coverm.metabat2.df)
 
 #+ echo=FALSE
@@ -348,41 +351,42 @@ coverm.megahit.df<-data.table::fread(coverm.megahit.fname,header = T,
   as_tibble()%>%
   rename(sample_contig=contig)%>%
   separate_wider_delim(sample_contig,delim = "_",
-                       names = c("sample","contig_id"),
+                       names = c("sample_id","contig_id"),
                        too_many="merge" )
-head(coverm.megahit.df)
+head(coverm.megahit.df)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
 nrow(coverm.megahit.df)
 
 #' How much relative abundance is classified in drep bins:
 coverm.drep.df%>%
-  mutate(sample=ifelse(grepl("unmapped",genome),
+  mutate(sample_id=ifelse(grepl("unmapped",genome),
                        gsub("unmapped_","",genome),
                        gsub("_bin.[0-9]*","",genome)))%>%
   filter(!grepl("unmapped",genome))%>%
-  group_by(sample)%>%
+  group_by(sample_id)%>%
   summarise(sum_relative_ab=sum(relative_abundance))
 
 #' How much relative abundance is classified in MetaBAT2 bins:
 coverm.metabat2.df%>%
-  mutate(sample=ifelse(grepl("unmapped",genome),
+  mutate(sample_id=ifelse(grepl("unmapped",genome),
                        gsub("unmapped_","",genome),
                        gsub("_bin.[0-9]*","",genome)))%>%
   filter(!grepl("unmapped",genome))%>%
-  group_by(sample)%>%
+  group_by(sample_id)%>%
   summarise(sum_relative_ab=sum(relative_abundance))
 
 #' How much relative abundance is classified in MetaBAT2 bins that belonged to
 #' drep clusters:
-seqkit.with_taxonomy%>%
-  mutate(genome=paste(sample,bin_id,sep="_bin."))%>%
-  distinct(sample,bin_id,genome,secondary_cluster)%>%
+# seqkit.with_taxonomy%>%
+seqkit.all.df%>%
+  filter(!secondary_cluster %in% c("unassembled", "low_quality_mag"))%>%
+  mutate(genome=paste(sample_id,bin_id,sep="_bin."))%>%
+  distinct(sample_id,bin_id,genome,secondary_cluster)%>%
   left_join(coverm.metabat2.df,by=join_by("genome"))%>%
-  filter(!is.na(secondary_cluster))%>%
-  group_by(sample)%>%
+  group_by(sample_id)%>%
   summarise(sum_relative_ab=sum(relative_abundance))
-
-#' Save image
-# save.image(file="./output/rdafiles/mag-combine-all-data.Rdata")
 
 #+ echo=FALSE
 ## 8. Join relative abundances with taxonomy. ####
@@ -392,126 +396,103 @@ seqkit.with_taxonomy%>%
 ### 8.1 GTDB-tk + dRep ####
 #'
 #' ### GTDB-tk + dRep
-gtdbtk.coverm.drep<-seqkit.with_taxonomy%>%
-  filter(!is.na(secondary_cluster))%>%
-  select(sample,bin_id,secondary_cluster)%>%
+gtdbtk.coverm.drep <- seqkit.all.df%>% # seqkit.with_taxonomy%>%
+  filter(!secondary_cluster %in% c("unassembled", "low_quality_mag"))%>%
+  select(sample_id,bin_id,secondary_cluster)%>%
   distinct()%>%
+  mutate(bin_id = as.integer(bin_id))%>% # conver bin_id into integer because we will join it with the gtdbtk data
   right_join(gtdbtk.taxonomy)%>%
-  mutate(genome=paste(sample,bin_id,sep="_bin."))%>%
+  mutate(genome=paste(sample_id,bin_id,sep="_bin."))%>%
   left_join(coverm.drep.df[,c("genome","relative_abundance")],
-            by=join_by("genome"))%>%
+            by=join_by("genome"))%>% # here, we add the relative abundances
   select(-genome)
-head(gtdbtk.coverm.drep)
+head(gtdbtk.coverm.drep)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
 #+ echo=FALSE
 ### 8.2 GTDB-tk + MetaBAT2 ####
 #'
 #' ### GTDB-tk + MetaBAT2
-gtdbtk.coverm.metabat2<-seqkit.with_taxonomy%>%
-  distinct(sample,bin_id,secondary_cluster)%>%
-  filter(!is.na(secondary_cluster))%>%
-  full_join(gtdbtk.taxonomy,by = join_by(sample, bin_id))%>%
+gtdbtk.coverm.metabat2 <- seqkit.all.df%>% # seqkit.with_taxonomy%>%
+  filter(!secondary_cluster %in% c("unassembled", "low_quality_mag"))%>%
+  distinct(sample_id,bin_id,secondary_cluster)%>%
+  mutate(bin_id = as.integer(bin_id))%>%
+  # full_join(gtdbtk.taxonomy,by = join_by(sample_id, bin_id)) %>%
+  full_join(gtdbtk.coverm.drep[,c("secondary_cluster","classification")],
+            by = join_by(secondary_cluster)) %>% # add the previous dataset because it has secondary_cluster info
   group_by(secondary_cluster) %>%
-  mutate(classification = classification[!is.na(classification)][1L])%>%
+  mutate(classification = classification[!is.na(classification)][1L])%>% # remove NAs
   ungroup%>%
-  mutate(genome=paste(sample,bin_id,sep="_bin."))%>%
-  left_join(coverm.metabat2.df[,c("genome","relative_abundance")],
-            by=join_by("genome"))%>%
+  mutate(genome=paste(sample_id,bin_id,sep="_bin."))%>%
+  left_join(coverm.metabat2.df[,c("genome","relative_abundance")], 
+            by=join_by("genome"))%>% # add relative abundances
   select(-genome)
-head(gtdbtk.coverm.metabat2)
+head(gtdbtk.coverm.metabat2) %>%
+  knitr::kable(format = "simple")%>%
+  print()
 
 #+ echo=FALSE
 ### 8.3 BLASTN + MEGAHIT ####
 #'
 #' ### BLASTN + MEGAHIT
-blastn.coverm.megahit<-coverm.megahit.df%>%
-  select(sample, contig_id,tpm)%>%
-  inner_join(blastn.taxonomy,by = join_by(sample, contig_id))
-head(blastn.coverm.megahit)
+blastn.coverm.megahit <- coverm.megahit.df%>%
+  select(sample_id, contig_id,tpm)%>%
+  inner_join(blastn.taxonomy,by = join_by(sample_id, contig_id))
+head(blastn.coverm.megahit)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
+# Remove CoverM data because it's already join with taxonomy
 rm(coverm.drep.df)
 rm(coverm.metabat2.df)
 rm(coverm.megahit.df)
-
-# 
-# gtdbtk.taxonomy%>%
-#   distinct(sample,bin_id,classification)%>%
-#   left_join(drep.winning_genomes[,c("sample","bin_id","cluster")])%>%
-#   full_join(seqkit.metabat2.df,by=join_by(sample,bin_id))%>%
-#   distinct(sample,bin_id,.keep_all = T)%>%View
-
-#' Most contigs seem unclassified, but actually, they probably were. 
-#' We don't see it because we ran GTDB-tk on dereplicated genomes only. 
-#' So, redundant contigs were ignored.
-seqkit.with_taxonomy%>%
-  ggplot(aes(x=sample,fill=tax.classification.type))+
-  geom_bar(stat="count")
-
-#' Now, fill NAs for bins that were not used in GTDBtk but actually 
-#' belonged to a drep cluster. They were redundant but their cluster was 
-#' classified, so they were supposed to be classified, too.
-#'
-#' Fill NA by group (secondary_cluster). Group by secondary_cluster, 
-#' then select the first non-NA value [1L] and use that non-NA value to 
-#' fill NAs for other entries in the group 
-seqkit.with_taxonomy%>%
-  group_by(sample,bin_id,secondary_cluster) %>% 
-  mutate(gtdbtk_result = gtdbtk_result[!is.na(gtdbtk_result)][1L])%>%
-  ungroup%>%
-  mutate(tax.classification.type=ifelse(!is.na(gtdbtk_result)&is.na(blastn_result),
-                                        "gtdbtk_only",tax.classification.type))%>%
-  # filter(tax.classification.type!="unclassified")%>%
-  ggplot(aes(x=sample,fill=tax.classification.type))+
-  geom_bar(stat="count")
-#' But among classified contigs, GTDB-tk classified more
-seqkit.with_taxonomy%>%
-  filter(tax.classification.type!="unclassified")%>%
-  ggplot(aes(x=sample,fill=tax.classification.type))+
-  geom_bar(stat="count")
-#' Now remove unclassified contigs to get a better view. Now there's more contigs
-seqkit.with_taxonomy%>%
-  group_by(sample,bin_id,secondary_cluster) %>% 
-  mutate(gtdbtk_result = gtdbtk_result[!is.na(gtdbtk_result)][1L])%>%
-  ungroup%>%
-  mutate(tax.classification.type=ifelse(!is.na(gtdbtk_result)&is.na(blastn_result),
-                                        "gtdbtk_only",tax.classification.type))%>%
-  filter(tax.classification.type!="unclassified")%>%
-  ggplot(aes(x=sample,fill=tax.classification.type))+
-  geom_bar(stat="count")
+rm(blastn.taxonomy)
 
 #' Save data
-# saveRDS(seqkit.with_taxonomy,file = "./output/rdafiles/seqkit-with_taxonomy.rds")
-# saveRDS(gtdbtk.coverm.drep,file = "./output/rdafiles/gtdbtk-coverm-drep.rds")
-# saveRDS(gtdbtk.coverm.metabat2,file = "./output/rdafiles/gtdbtk-coverm-metabat2.rds")
-# saveRDS(blastn.coverm.megahit,file = "./output/rdafiles/blastn-coverm-megahit.rds")
-# data.table::fwrite(seqkit.with_taxonomy,
-#             file = "./output/rtables/seqkit-with_taxonomy.tsv",
-#             col.names = TRUE,
-#             row.names = FALSE,
-#             quote = FALSE,
-#             sep = '\t',
-#             na =NA)
-# 
-# write.table(gtdbtk.coverm.drep,
-#             file = "./output/rtables/gtdbtk-coverm-drep.tsv",
-#             col.names = TRUE,
-#             row.names = FALSE,
-#             quote = FALSE,
-#             sep = '\t')
-# 
-# write.table(gtdbtk.coverm.metabat2,
-#             file = "./output/rtables/gtdbtk-coverm-metabat2.tsv",
-#             col.names = TRUE,
-#             row.names = FALSE,
-#             quote = FALSE,
-#             sep = '\t')
-# 
-# write.table(blastn.coverm.megahit,
-#             file = "./output/rtables/blastn-coverm-megahit.tsv",
-#             col.names = TRUE,
-#             row.names = FALSE,
-#             quote = FALSE,
-#             sep = '\t')
+if (!file.exists(seqkit.all.df.fname.rds) & !file.exists(seqkit.all.df.fname.tsv)){
+  saveRDS(seqkit.all.df, file = seqkit.all.df.fname.rds)
+  data.table::fwrite(seqkit.all.df,
+              file = seqkit.all.df.fname.tsv,
+              col.names = TRUE,
+              row.names = FALSE,
+              quote = FALSE,
+              sep = '\t',
+              na =NA)
+  
+}
+
+if (!file.exists(gtdbtk.coverm.drep.fname.rds) & !file.exists(gtdbtk.coverm.drep.fname.tsv)){
+  saveRDS(gtdbtk.coverm.drep,file = gtdbtk.coverm.drep.fname.rds)
+  write.table(gtdbtk.coverm.drep,
+              file = gtdbtk.coverm.drep.fname.tsv,
+              col.names = TRUE,
+              row.names = FALSE,
+              quote = FALSE,
+              sep = '\t')
+  
+}
+if (!file.exists(gtdbtk.coverm.metabat2.fname.rds) & !file.exists(gtdbtk.coverm.metabat2.fname.tsv)){
+  saveRDS(gtdbtk.coverm.metabat2,file = gtdbtk.coverm.metabat2.fname.rds)
+  write.table(gtdbtk.coverm.metabat2,
+              file = gtdbtk.coverm.metabat2.fname.tsv,
+              col.names = TRUE,
+              row.names = FALSE,
+              quote = FALSE,
+              sep = '\t')
+  
+}
+if (!file.exists(blastn.coverm.megahit.fname.rds) & !file.exists(blastn.coverm.megahit.fname.tsv)){
+  saveRDS(blastn.coverm.megahit,file = blastn.coverm.megahit.fname.rds)
+  write.table(blastn.coverm.megahit,
+              file = blastn.coverm.megahit.fname.tsv,
+              col.names = TRUE,
+              row.names = FALSE,
+              quote = FALSE,
+              sep = '\t')
+  
+}
+
 sessionInfo()
 rm(list = ls(all=TRUE))
 gc()

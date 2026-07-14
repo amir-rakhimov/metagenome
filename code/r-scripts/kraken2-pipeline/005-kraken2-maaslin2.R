@@ -36,6 +36,8 @@ library(vegan)
 ## 2. Specifying parameters and directory/file names. #### 
 #'
 #' ## Specifying parameters and directory/file names. 
+source(here::here("config/R/config.R"))# config file with global variables
+source(here::here("config/R/themes.R"))# config file with themes
 #' Directories with input files:
 rdafiles.directory<-"./output/rdafiles"
 rtables.directory<-"./output/rtables"

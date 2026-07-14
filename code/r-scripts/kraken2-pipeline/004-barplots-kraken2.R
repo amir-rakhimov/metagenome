@@ -32,24 +32,40 @@ library(ggtext)
 ## 2. Specifying parameters and directory/file names. #### 
 #'
 #' ## Specifying parameters and directory/file names. 
+source(here::here("config/R/config.R"))# config file with global variables
+source(here::here("config/R/themes.R"))# config file with themes
 #' The taxonomic rank that was used for agglomeration:
 agglom.rank<-"Species" 
-#' Specify paths and image formats:
-barplot.directory<-"./images/barplots/"
-rdafiles.directory<-"./output/rdafiles"
-rtables.directory<-"./output/rtables"
-image.formats<-c("png","tiff")
-#' Path for custom metadata:
-metadata.directory<-"../amplicon_nmr/output/rdafiles" # path for custom.md.ages.rds
-#' Import abundance table as an rds file (NOT rarefied): 
-ps.q.agg.date_time<-"20241003_13_52_43"
-ps.q.agg<-readRDS(file=file.path(
-  rdafiles.directory,
-  paste(ps.q.agg.date_time,"phyloseq","kraken2",agglom.rank,
-        "table.rds",sep = "-")))
-#' Import metadata:
-custom.md<-readRDS(file.path(metadata.directory,"custom.md.ages.rds"))%>%
-  filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
+#' Import phyloseq object as an rds file (NOT rarefied): 
+ps.q<-readRDS(file= ps.q.raw.fname)
+ps.q.rel <-readRDS(file= ps.q.rel.raw.fname)
+custom.md <- readRDS(custom.md.path)%>%
+  filter(sequencing_type =="Naked mole-rat whole metagenome sequencing")
+
+# 
+# ps.q.agg.date_time<-"20241003_13_52_43"
+if(agglom.rank=="OTU" | agglom.rank=="Species"){
+  ps.q.agg.rel<-ps.q.rel%>%
+    psmelt()
+  ps.q.agg <- ps.q%>%
+    psmelt()
+}else{
+  ps.q.agg.rel<-ps.q.rel%>%
+    tax_glom(taxrank = agglom.rank)%>%
+    psmelt()%>%
+    select(-OTU)
+  ps.q.agg<-ps.q%>%
+    tax_glom(taxrank = agglom.rank)%>%
+    psmelt()%>%
+    select(-OTU)
+}
+# Join the dataframe of relative abundances with absolute abundances
+ps.q.agg <-  ps.q.agg.rel %>%
+  rename("RelativeAbundance" = "Abundance")%>%
+  left_join(ps.q.agg[,c("Sample",agglom.rank,"Abundance")])
+mean_sd_relab.nmr_ages<- read.table(file.path(community.composition.tables,
+                                               paste0("mean-max-min-sd-relab-nmr_ages-",agglom.rank,".tsv")),
+                                    sep = "\t", header = T)
 
 #' Check the total number of taxa (not filtered by mean relative abundance)
 ps.q.agg%>%
@@ -95,6 +111,8 @@ new.df<-ps.q.agg%>%
   unite("taxon",Kingdom:all_of(agglom.rank),sep = ";",remove = FALSE)%>%
   mutate(is_unclassified = grepl
          ("Kingdom|Phylum|Class|Order|Family|Genus|Species",taxon))%>% # add column to show that a taxon was unclassified
+  left_join(mean_sd_relab.nmr_ages) %>%
+  mutate(MeanRelativeAbundance = ifelse(is.na(MeanRelativeAbundance), 0, MeanRelativeAbundance))%>%
   mutate(is_unclassified=ifelse(is_unclassified==TRUE &!grepl
                                 ("Kingdom|Phylum|Class|Order|Family|Genus|Species",
                                   get(agglom.rank)),
@@ -222,7 +240,7 @@ print(mainplot+
 #'
 #' ## Relative abundance per kingdom (including bacteria).
 #' Read table with unclassified read numbers.
-unclassified_reads<-read.table("./output/kraken2_pipeline/20240409_17_32_40_unclassified_reads.tsv",
+unclassified_reads<-read.table(kraken2.unclassified.stats.fname,
                                header = T)
 colnames(unclassified_reads)[which(colnames(unclassified_reads)=="Unclassified")]<-"Abundance"
 unclassified_reads$Kingdom<-"Unclassified"
