@@ -287,5 +287,5 @@ if(!file.exists(tpm.df.fname.rds) & !file.exists(tpm.df.fname.tsv)){
                      quote = TRUE,sep = '\t',row.names = FALSE,col.names = TRUE)
 }
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
