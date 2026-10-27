@@ -37,18 +37,18 @@ awk '/^>/ {
 
 
 # Use BLAST to find CAZymes in the reference CAZy database
-mkdir -p "${blastdb_path}"
+mkdir -p "${blastp_db_path}"
 # Build a database
 makeblastdb -in "${cazy_db_fasta_dir}"/CAZyDB.07142024.seq.fa \
  -parse_seqids \
- -out "${blastdb_path}" \
+ -out "${blastp_db_path}" \
  -logfile "jobreports/cazy_db_pep-makedblastdb-out.txt" \
  -title "CAZy database peptide db" \
  -dbtype prot
 
 
 mkdir -p "${blastp_output_dir}"/
-blastp -db "${blastdb_path}" \
+blastp -db "${blastp_db_path}" \
     -query "${annotation_fasta_dir}"/all-cazymes.faa \
     -out "${blastp_output_dir}"/blastp_cazy_db_cazymes_results.tsv \
     -outfmt "6 qacc sacc qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sframe" \

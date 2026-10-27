@@ -23,7 +23,7 @@ echo "$(date +"%F %H:%M:%S")"
 echo "Building a BLAST reference database"
 makeblastdb -in "${silva_db_dir}"/SILVA_138.2_SSURef_NR99_tax_silva.fasta \
     -parse_seqids \
-    -out "${blastdb_path}" \
+    -out "${blastn_db_path}" \
     -logfile "jobreports/SILVA_138_2_SSURef_NR99_tax_silva-makedblastdb-out.txt" \
     -title "SILVA 138_2 SSURef NR99 db" \
     -dbtype nucl
@@ -39,7 +39,7 @@ do
     base_name=$(basename "$SAMPLE" )
     echo "Running BLASTN on ${base_name} using SILVA 138_2 SSURef NR99 database"
     blastn -query "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
-        -db "${blastdb_path}" \
+        -db "${blastn_db_path}" \
         -out "${blastn_output_dir}"/blastn_"${base_name}"_SILVA_results.tsv \
         -outfmt "6 qacc sacc qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore sframe" \
         -num_threads "${nthreads_blast}" \
