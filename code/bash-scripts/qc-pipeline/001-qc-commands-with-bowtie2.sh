@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 source $HOME/miniconda3/etc/profile.d/conda.sh
+# Activate conda environment
+conda activate qc-tools 
+set -euo pipefail
+shopt -s nullglob
+source config/bash/config.sh
+cd "${project_home_dir}"
 
 ######
 # This script performs the following:
@@ -88,52 +94,164 @@ source $HOME/miniconda3/etc/profile.d/conda.sh
 # * Final quality check reports from FASTQC and MultiQC
 ######
 
+# Function that checks if a required file exists or not
+require() { [[ -s "$1" ]] || { echo "ERROR: required file missing: $1" >&2; exit 1; }; }
+# Function that marks a sample as done (in a hidden directory)
+is_done()   { [[ -e "${mark_dir}/${2}.${1}.done" ]]; }   # is_done STEP SAMPLE
+mark_done() { touch "${mark_dir}/${2}.${1}.done"; }      # mark_done STEP SAMPLE
 
-# Activate conda environment
-conda activate qc-tools 
-# Rename files: done in the rename script
-cd "${project_home_dir}"
+# Read the input file list
+if [[ ! -s "${SAMPLES_PATHS_RAW}" ]]; then
+	awk -F',' -v raw_file_path=$fastq_dir 'BEGIN {OFS="\t"}
+		NR ==1 {print "sample_id", "forward_absolute_path", "reverse_absolute_path"}
+		NR >1 {print $1, raw_file_path"/"$1"_R1.fastq.gz", raw_file_path"/"$1"_R1.fastq.gz"}' \
+		"${SAMPLES_IDS}" > \
+		"${SAMPLES_PATHS_RAW}"
+fi
+
+[[ -s "${SAMPLES_PATHS_RAW}" ]] || { echo "ERROR: metadata $SAMPLES_PATHS_RAW missing or empty" >&2; exit 1; }
+# Remove CR LF
+sed -i 's/\r$//' "${SAMPLES_PATHS_RAW}"
+
+# We need to know the abosute paths of input FASTQ files.
+declare -A R1 R2
+SAMPLES=()
+while IFS=$'\t' read -r sample_id fwd_absolute_path rev_absolute_path \
+    || [[ -n "${sample_id}" ]]
+do
+    [[ "${sample_id}" == "sample_id" || -z "${sample_id}" ]] && continue
+    r1="${fwd_absolute_path}"
+    r2="${rev_absolute_path}"
+    for f in "${r1}" "${r2}"; do
+        [[ -s "${f}" ]] || { echo "ERROR: missing input for ${sample_id}: ${f}" >&2; exit 1; } # True if file exists and has a size greater than zero.
+    done
+    SAMPLES+=("${sample_id}"); R1[$sample_id]="${r1}"; R2[$sample_id]="${r2}"
+done <  "${SAMPLES_PATHS_RAW}"
+
+(( ${#SAMPLES[@]} > 0 )) || { echo "ERROR: no samples found" >&2; exit 1; } # Counts the number of elements in the final array of samples. If
+                                                    # the array is empty, raises an error
+
 
 # Download reference genomes
 ## Heter_glaber.v1.7_hic_pac
-curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA \
-  --output "${reference_genomes_dir}"/Heter_glaber.v1.7_hic_pac.zip
+GENOME_FNA="${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac__genomic.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA \
+		--output "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip
+	unzip "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip -d "${reference_genomes_dir}"
+	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCA_014060925.1/GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna \
+		"${GENOME_FNA}"
+	rm "${reference_genomes_dir}"/md5sum.txt
+	rm "${reference_genomes_dir}"/README.md
+	rm -rf "${reference_genomes_dir}"/ncbi_dataset
+	rm "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip
+fi
+
 ## There is also a new assembly that is used by Ensembl: Naked_mole-rat_maternal
-curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA \
-  --output "${reference_genomes_dir}"/Naked_mole-rat_maternal.zip
+# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA \
+# 	--output "${reference_genomes_dir}"/Naked_mole-rat_maternal.zip
+GENOME_FNA="${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC__genomic.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA \
+		--output "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip
+	unzip "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip -d "${reference_genomes_dir}"
+	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna \
+		"${GENOME_FNA}"
+	rm "${reference_genomes_dir}"/md5sum.txt
+	rm "${reference_genomes_dir}"/README.md
+	rm -rf "${reference_genomes_dir}"/ncbi_dataset
+	rm "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip
+fi
 ## DMR_v1.0_HiC Damaraland mole-rat
-curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA \
-  --output "${reference_genomes_dir}"/DMR_v1.0_HiC.zip
+
 ### Human T2T
-curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_009914755.1/download?include_annotation_type=GENOME_FASTA \
-  --output "${reference_genomes_dir}"/T2T.zip
+GENOME_FNA="${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0__genomic.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_009914755.1/download?include_annotation_type=GENOME_FASTA \
+		--output "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip
+	unzip "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip -d "${reference_genomes_dir}"
+	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_009914755.1/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna \
+		"${GENOME_FNA}"
+	rm "${reference_genomes_dir}"/md5sum.txt
+	rm "${reference_genomes_dir}"/README.md
+	rm -rf "${reference_genomes_dir}"/ncbi_dataset
+	rm "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip
+fi
+
 ### Mouse GRCm39
-curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_000001635.27/download?include_annotation_type=GENOME_FASTA \
-  --output "${reference_genomes_dir}"/GRCm39.zip
+GENOME_FNA="${reference_genomes_dir}"/GCF_000001635.27__GRCm39__genomic.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_000001635.27/download?include_annotation_type=GENOME_FASTA \
+		--output "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip
+	unzip "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip -d "${reference_genomes_dir}"
+	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_000001635.27/GCF_000001635.27_GRCm39_genomic.fna \
+		"${GENOME_FNA}"
+	rm "${reference_genomes_dir}"/md5sum.txt
+	rm "${reference_genomes_dir}"/README.md
+	rm -rf "${reference_genomes_dir}"/ncbi_dataset
+	rm "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip
+fi
+
 ### human decoy genome
-wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5ss.fa.gz
-mv hs37d5ss.fa human_decoy.fa
-# TODO: check and rewrite if needed
-# for file in ncbi_dataset/data/*/protein.faa
-# do
-# directory_name=$(dirname $file)
-# accession=$(basename $directory_name)
-# mv "${file}" "${directory_name}/${accession}_$(basename $file)"
-# done
+GENOME_FNA="${reference_genomes_dir}"/hs37d5ss__human_decoy.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5ss.fa.gz \
+		--output "${reference_genomes_dir}"/hs37d5ss.fa.gz
+	gunzip "${reference_genomes_dir}"/hs37d5ss.fa.gz
+	mv "${reference_genomes_dir}"/hs37d5ss.fa "${GENOME_FNA}"
+fi
 
-mv ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna DMR_v1.0_HiC_genomic.fna
+# phiX174 genome
+GENOME_FNA="${reference_genomes_dir}"/NC_001422.1__phiX174__genomic.fna
+if [[ ! -s "${GENOME_FNA}" ]]; then
+	datasets download virus genome accession NC_001422.1 --include genome \
+		--filename "${reference_genomes_dir}"/NC_001422.1__phiX174.zip
+	unzip "${reference_genomes_dir}"/NC_001422.1__phiX174.zip -d "${reference_genomes_dir}"
+	mv "${reference_genomes_dir}"/ncbi_dataset/data/genomic.fna \
+		"${GENOME_FNA}"
+	rm "${reference_genomes_dir}"/md5sum.txt
+	rm "${reference_genomes_dir}"/README.md
+	rm -rf "${reference_genomes_dir}"/ncbi_dataset
+	rm "${reference_genomes_dir}"/NC_001422.1__phiX174.zip
+fi
+
+# Add a prefix with assembly ID just in case there're duplicates
+for GENOME_FILE in "${reference_genomes_dir}"/*__genomic.fna
+do
+	GENOME_ID=$( basename "${GENOME_FILE}" | sed "s/__genomic\.fna//" )	
+	GENOME_FILE_WITH_ASM_ID="${reference_genomes_dir}/${GENOME_ID}__genomic_id_replaced.fna"
+	if [[ ! -s "${GENOME_FILE_WITH_ASM_ID}" ]]; then
+		seqkit replace -p ^ -r "${GENOME_ID}__" "${GENOME_FILE}" > "${GENOME_FILE_WITH_ASM_ID}"
+		rm "${GENOME_FILE}"
+	fi
+
+done
+# separately for decoy
+if [[ ! -s "${reference_genomes_dir}/hs37d5ss__human_decoy__id_replaced.fna" ]]; then
+	seqkit replace -p ^ -r "hs37d5ss__human_decoy__" "${reference_genomes_dir}"/hs37d5ss__human_decoy.fna >\
+		"${reference_genomes_dir}/hs37d5ss__human_decoy__id_replaced.fna"
+fi
+
 # Prepare NMR genome for Kraken2 database
-sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna > \
- sed1_Heter_glaber.v1.7_hic_pac_genomic.fna
-sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|10181/' sed1_Heter_glaber.v1.7_hic_pac_genomic.fna > \
- Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna
+if [[ ! -s "${reference_genomes_dir}/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna" ]]; then
+	sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' \
+		"${reference_genomes_dir}/GCA_014060925.1__Heter_glaber.v1.7_hic_pac__genomic.fna" > \
+		"${reference_genomes_dir}/sed1_Heter_glaber.v1.7_hic_pac_genomic.fna"
+	sed 's/, whole genome shotgun sequence/_Heter_glaber.v1.7_hic_pac|kraken:taxid|10181/' \
+		"${reference_genomes_dir}/sed1_Heter_glaber.v1.7_hic_pac_genomic.fna" > \
+		"${reference_genomes_dir}/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna"
+fi
 
-# # Merge them all into one FASTA file
-cat "${reference_genomes_dir}"/*genomic.fna > "${reference_genomes_dir}"/all_hosts_reference.fasta 
-cat "${reference_genomes_dir}"/phiX174.fasta >>"${reference_genomes_dir}"/all_hosts_reference.fasta
-# # Build a bowtie2 large index
-bowtie2-build --large-index --threads "${nthreads_qc}" "${reference_genomes_dir}"/all_hosts_reference.fasta \
-  "${bowtie2_indices_dir}"/all_hosts_reference
+# Merge them all into one FASTA file
+if [[ ! -s "${reference_genomes_dir}/${bowtie2_index_name}".fasta  ]]; then
+	cat "${reference_genomes_dir}"/*_id_replaced.fna > "${reference_genomes_dir}/${bowtie2_index_name}".fasta 
+fi
+
+# Build a bowtie2 large index
+if [[ ! -s "${bowtie2_indices_dir}/${bowtie2_index_name}"  ]]; then #not sure if this is the right file name to check
+	bowtie2-build --large-index --threads "${nthreads_qc}" "${reference_genomes_dir}/${bowtie2_index_name}".fasta \
+		"${bowtie2_indices_dir}/${bowtie2_index_name}"
+fi
 
 # The QC workflow is this:
 ### 1. Run FastQC and trim overrepresented sequences
@@ -151,9 +269,13 @@ bowtie2-build --large-index --threads "${nthreads_qc}" "${reference_genomes_dir}
 ### 5. Run FastQC and MultiQC on decontaminated data as a final check
 
 # 1. Run FastQC and trim overrepresented sequences
-fastqc "${fastq_dir}"/*.fq.gz --outdir "${fastqc_output_dir}"
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+	echo "Running FastQC on ${SAMPLE_ID}"
+	fastqc "${R1[$SAMPLE_ID]}" "${R2[$SAMPLE_ID]}" --outdir "${fastqc_output_dir}"
+done
 ## 1.1 Run MultiQC
-multiqc "${fastqc_output_dir}"/ --outdir ${multiqc_output_dir}
+multiqc "${fastqc_output_dir}"/ --outdir "${multiqc_output_dir}"
 
 # 2. Run Cutadapt
 ### Three filtering steps:
@@ -161,22 +283,21 @@ multiqc "${fastqc_output_dir}"/ --outdir ${multiqc_output_dir}
 ### (2) Remove reads containing N > 10% (N represents the base cannot be determined).
 ### (3) Remove reads containing low quality (Qscore<= 5) base which is over 50% of the total base.
 
-for FILE in ${fastq_dir}/*wms_L3_1.fq.gz
-do 
- SAMPLE=$(echo ${FILE} | sed "s/_wms_L3_1\.fq\.gz//")
- base_name=$(basename "$SAMPLE" )
- cutadapt \
-  --cores="${nthreads_qc}" \
-  -g "${FWD_ADAPTER}" -G "${REV_ADAPTER}" \
-  --max-n 0.1 \
-  -q 5 \
-  -O 5 \
-  --minimum-length 75 \
-  --discard-trimmed \
-  -o "${cutadapt_output_dir}"/"${base_name}"_R1.trimmed.fastq.gz \
-  -p "${cutadapt_output_dir}"/"${base_name}"_R2.trimmed.fastq.gz \
-  "${fastq_dir}"/"${base_name}"_wms_L3_1.fq.gz "${fastq_dir}"/"${base_name}"_wms_L3_2.fq.gz > \
-  "${cutadapt_output_dir}"/"${base_name}"_report.txt;
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+	echo "Running Cutadapt on ${SAMPLE_ID}"
+	cutadapt \
+		--cores="${nthreads_qc}" \
+		-g "${FWD_ADAPTER}" -G "${REV_ADAPTER}" \
+		--max-n 0.1 \
+		-q 5 \
+		-O 5 \
+		--minimum-length 75 \
+		--discard-trimmed \
+		-o "${cutadapt_output_dir}"/"${SAMPLE_ID}"_R1.trimmed.fastq.gz \
+		-p "${cutadapt_output_dir}"/"${SAMPLE_ID}"_R2.trimmed.fastq.gz \
+		"${R1[$SAMPLE_ID]}" "${R2[$SAMPLE_ID]}" \
+		"${cutadapt_output_dir}"/"${SAMPLE_ID}"_report.txt;
 done
 
 ### FILE: data/fastq/yasuda-fastq/2D10_wms_L3_1.fq.gz
@@ -209,77 +330,36 @@ done
 ### base_name is just the file without extension or path (2D10_wms)
 
 # 3.1 Align the reads to the reference genome (remove host DNA with bowtie2)
-### On raw data (don't do it!)
-# for FILE in ${fastq_dir}/*L3_1.fq.gz
-# do 
-#   SAMPLE=$(echo ${FILE} | sed "s/_L3_1\.fq\.gz//")
-#   base_name=$(basename "$SAMPLE" )
-#   bowtie2 -p ${nthreads_qc} -x ${bowtie2_indices_dir}/all_hosts_reference \
-#   -1 ${fastq_dir}/${base_name}_L3_1.fq.gz \
-#   -2 ${fastq_dir}/${base_name}_L3_2.fq.gz \
-#   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
-# done
-
 ### On trimmed data (from cutadapt)
-for FILE in ${cutadapt_output_dir}/*R1.trimmed.fastq.gz
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/_R1\.trimmed\.fastq\.gz//")
-  base_name=$(basename "$SAMPLE" )
-  bowtie2 -p "${nthreads_qc}" -x ${bowtie2_indices_dir}/all_hosts_reference \
-  -1 "${cutadapt_output_dir}"/"${base_name}"_R1.trimmed.fastq.gz \
-  -2 "${cutadapt_output_dir}"/"${base_name}"_R2.trimmed.fastq.gz \
-  -S "${bowtie2_output_sam_dir}"/"${base_name}"_trim_mapped_and_unmapped.sam;
-done
-
-### On trimmed data where tandem repeats were removed (TRF)
-# for FILE in ${fastq_norepeats_dir}/*R1.clean.fastq.gz
-# do 
-#   SAMPLE=$(echo ${FILE} | sed "s/_R1\.clean\.fastq\.gz//")
-#   base_name=$(basename "$SAMPLE" )
-#   bowtie2 -p ${nthreads} -x ${bowtie2_indices_dir}/all_hosts_reference \
-#   -1 ${fastq_norepeats_dir}/${base_name}_R1.clean.fastq.gz \
-#   -2 ${fastq_norepeats_dir}/${base_name}_R2.clean.fastq.gz \
-#   -S ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam;
-# done
-
-
-## 3.2 Convert file .sam to .bam
-for FILE in ${bowtie2_output_sam_dir}/*mapped_and_unmapped.sam
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/_mapped_and_unmapped\.sam//")
-  base_name=$(basename "$SAMPLE" )
-  samtools view -bS ${bowtie2_output_sam_dir}/${base_name}_mapped_and_unmapped.sam > \
-    ${bowtie2_output_bam_dir}/${base_name}_mapped_and_unmapped.bam;
-done
-
-## 3.3 Filter unmapped reads (unmapped to host genome)
-### SAMtools SAM-flag filter: get unmapped pairs (both reads R1 and R2 unmapped)
-for FILE in ${bowtie2_output_bam_dir}/*mapped_and_unmapped.bam 
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/_mapped_and_unmapped\.bam//")
-  base_name=$(basename "$SAMPLE" )
-  samtools view -b -f 12 -F 256 \
-   ${bowtie2_output_bam_dir}/${base_name}_mapped_and_unmapped.bam \
-   > ${bowtie2_filtered_bam_dir}/${base_name}_bothReadsUnmapped.bam;
-done
-###-f  12    # Extract only ( -f ) alignments with both reads unmapped: <read unmapped><mate unmapped>
-###-F 256    # Do not (  -F  ) extract alignments which are: <not primary alignment>
-
-## 3.4 Split paired-end reads into separated fastq files .._R1 .._R2
-### First, sort bam file by read name ( -n ) to have paired reads next to each other 
-### (${nthreads_sort} parallel threads, each using up to 5G memory)
-### Then, filter and split
-for FILE in ${bowtie2_filtered_bam_dir}/*bothReadsUnmapped.bam 
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/_bothReadsUnmapped\.bam//")
-  base_name=$(basename "$SAMPLE" )
-  samtools sort -n -m ${mem_req_sort} -@ ${nthreads_sort} \
-  ${bowtie2_filtered_bam_dir}/${base_name}_bothReadsUnmapped.bam \
-    -o ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam
-  samtools fastq -@ ${nthreads_sort} ${bowtie2_sorted_bam_dir}/${base_name}_bothReadsUnmapped_sorted.bam \
-  	-1 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R1.fastq.gz \
-  	-2 ${bowtie2_decontam_fastq_dir}/${base_name}_decontam_R2.fastq.gz \
-  	-0 /dev/null -s /dev/null -n;
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+	echo "Running Bowtie2 on ${SAMPLE_ID}"
+	bowtie2 -p "${nthreads_qc}" \
+		-x "${bowtie2_indices_dir}/${bowtie2_index_name}" \
+		-1 "${cutadapt_output_dir}"/"${SAMPLE_ID}"_R1.trimmed.fastq.gz \
+		-2 "${cutadapt_output_dir}"/"${SAMPLE_ID}"_R2.trimmed.fastq.gz \
+		-S "${bowtie2_output_sam_dir}"/"${SAMPLE_ID}"_trim_mapped_and_unmapped.sam
+	## 3.2 Convert file .sam to .bam
+	samtools view -bS ${bowtie2_output_sam_dir}/${SAMPLE_ID}_mapped_and_unmapped.sam > \
+		${bowtie2_output_bam_dir}/${SAMPLE_ID}_mapped_and_unmapped.bam
+	# 3.3 Filter unmapped reads (unmapped to host genome)
+	### SAMtools SAM-flag filter: get unmapped pairs (both reads R1 and R2 unmapped)
+	###-f  12    # Extract only ( -f ) alignments with both reads unmapped: <read unmapped><mate unmapped>
+	###-F 256    # Do not (  -F  ) extract alignments which are: <not primary alignment>
+	samtools view -b -f 12 -F 256 \
+		${bowtie2_output_bam_dir}/${SAMPLE_ID}_mapped_and_unmapped.bam \
+		> ${bowtie2_filtered_bam_dir}/${SAMPLE_ID}_bothReadsUnmapped.bam
+	## 3.4 Split paired-end reads into separated fastq files .._R1 .._R2
+	### First, sort bam file by read name ( -n ) to have paired reads next to each other 
+	### (${nthreads_sort} parallel threads, each using up to 5G memory)
+	### Then, filter and split
+	samtools sort -n -m ${mem_req_sort} -@ ${nthreads_sort} \
+	${bowtie2_filtered_bam_dir}/${SAMPLE_ID}_bothReadsUnmapped.bam \
+		-o ${bowtie2_sorted_bam_dir}/${SAMPLE_ID}_bothReadsUnmapped_sorted.bam
+	samtools fastq -@ ${nthreads_sort} ${bowtie2_sorted_bam_dir}/${SAMPLE_ID}_bothReadsUnmapped_sorted.bam \
+		-1 ${bowtie2_decontam_fastq_dir}/${SAMPLE_ID}_decontam_R1.fastq.gz \
+		-2 ${bowtie2_decontam_fastq_dir}/${SAMPLE_ID}_decontam_R2.fastq.gz \
+		-0 /dev/null -s /dev/null -n;
 done
 
 # 4.1 Run FastQC and MultiQC on decontaminated data as a final check
