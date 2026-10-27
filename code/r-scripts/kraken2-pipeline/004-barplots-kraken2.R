@@ -25,6 +25,7 @@
 #'
 #' ## Load necessary libraries.
 # install.packages(c("tidyverse","ggtext","Polychrome"))
+library(phyloseq)
 library(tidyverse)
 library(Polychrome)
 library(ggtext)
@@ -35,15 +36,13 @@ library(ggtext)
 source(here::here("config/R/config.R"))# config file with global variables
 source(here::here("config/R/themes.R"))# config file with themes
 #' The taxonomic rank that was used for agglomeration:
-agglom.rank<-"Species" 
+agglom.rank <- "Species" 
 #' Import phyloseq object as an rds file (NOT rarefied): 
-ps.q<-readRDS(file= ps.q.raw.fname)
+ps.q <- readRDS(file= ps.q.raw.fname)
 ps.q.rel <-readRDS(file= ps.q.rel.raw.fname)
 custom.md <- readRDS(custom.md.path)%>%
   filter(sequencing_type =="Naked mole-rat whole metagenome sequencing")
 
-# 
-# ps.q.agg.date_time<-"20241003_13_52_43"
 if(agglom.rank=="OTU" | agglom.rank=="Species"){
   ps.q.agg.rel<-ps.q.rel%>%
     psmelt()
@@ -170,7 +169,6 @@ new.df<-ps.q.agg%>%
 #' next to each other).
 #' We also need to set the random seed because the output
 #' is a bit random. The output is a vector of colors.
-
 set.seed(1)
 plot.cols<-createPalette(length(levels(unique(new.df$taxon))),
                          seedcolors =rainbow(7))# input: number of rows
@@ -183,27 +181,31 @@ col.vec<-setNames(plot.cols,levels(new.df$taxon))
 ## 3. Plot the barplot. ####
 #'
 #' ## Plot the barplot. 
-mainplot<-new.df%>%
+mainplot <- new.df %>%
   left_join(custom.md[,c("Sample","age","host_birthday")])%>%
   arrange(age,host_birthday)%>%
-  mutate(age = ifelse(age==1,paste0("(",age," year old)"),
-                      paste0("(",age," years old)")),
+  mutate(age = paste0("(",age,")"),
          age = factor(age),
          Sample = paste(Sample,age),
          Sample = factor(Sample,levels=unique(Sample)))%>%
 
   ggplot(aes(x=Sample,y=RelativeAbundance,fill=taxon))+
   geom_bar(stat="identity")+
-  scale_fill_manual(values = col.vec)+ # custom fill that is based on our 
+  scale_fill_manual(values = col.vec) + # custom fill that is based on our custom palette
   coord_cartesian(expand=FALSE) +
-  # custom palette
   xlab("") +
   ylab("Relative Abundance (%)")+
   labs(fill="Taxon")+
-  theme_bw()+
-  guides(fill=guide_legend(ncol=1))+ # legend as one column
+  theme_bw() +
+  guides(fill=guide_legend(ncol=1)) # legend as one column
+
+#' Save the plot as an RDS object.
+saveRDS(mainplot,
+        file = file.path(kraken2.manuscript.figures,
+                         "kraken2.mainplot.rds"))
+
+mainplot <- mainplot +
   theme(plot.margin=unit(c(0.4,0.4,0.4,1), 'cm'),
-        # axis.line = element_blank(), #TODO: what does it do?
         strip.text.x = ggtext::element_markdown(size = 10),# the name of
         # each facet will be recognised as a markdown object, so we can
         # add line breaks (cause host names are too long)
@@ -223,17 +225,13 @@ print(mainplot+
         theme(plot.title = element_text(size=15))
 )
 
-# for(image.format in image.formats){
-#   ggsave(paste0(barplot.directory,
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "kraken2","barplot","NMR",
-#                       agglom.rank,
-#                       sep = "-"),".",image.format),
-#          plot=mainplot,
-#          width=11, height=7,units="in",
-#          dpi=300,device = image.format)
-# }
+for(image.format in image.formats){
+  ggsave(filename = paste0("kraken2-barplot-NMR.", image.format),
+         path = community.composition.figures,
+         plot=mainplot,
+         width=11, height=7,units="in",
+         dpi=300,device = image.format)
+}
 
 #+ echo=FALSE
 ## 4. Relative abundance per kingdom (including bacteria). ####
@@ -260,14 +258,21 @@ kingdom.plot.with_bact<-ps.q.agg%>%
   scale_fill_viridis_d(option = "C")+
   ylab("Relative abundance from all samples (%)")+
   xlab("")+
-  theme_bw()+
+  theme_bw()
+
+#' Save the plot as an RDS object.
+saveRDS(kingdom.plot.with_bact,
+        file = file.path(kraken2.manuscript.figures,
+                         "kraken2.kingdom.plot.with_bact.rds"))
+
+kingdom.plot.with_bact <- kingdom.plot.with_bact +
   coord_cartesian(expand = c("bottom" = F,
                              "left" = F,
-                             "right" = F))+
+                             "right" = F)) +
   geom_text(aes(x=Kingdom, 
                 y=TotalAbundancePerTax, 
                 label=round(TotalAbundancePerTax,digits = 3)),
-            vjust=-0.5,size=5)+ # add text with percentage above the bar
+            vjust=-0.5,size = 5)+ # add text with percentage above the bar
   theme(axis.line = element_blank(), 
         axis.text.x = element_text(size=13),
         axis.text.y = element_text(size=15), # size of y axis ticks
@@ -287,16 +292,13 @@ print(kingdom.plot.with_bact+
                (Kingdom level)")+
         theme(plot.title = ggtext::element_markdown(size=15))
 )
-# for(image.format in image.formats){
-#   ggsave(paste0(barplot.directory,
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "NMR","kingdom.plot.with_unclas",
-#                       sep = "-"),".",image.format),
-#          plot=kingdom.plot.with_bact,
-#          width=11, height=6,units="in",
-#          dpi=300,device = image.format)
-# }
+for(image.format in image.formats){
+  ggsave(filename = paste0("NMR-kingdom.plot.with_unclas.", image.format),
+         path = community.composition.figures,
+         plot = kingdom.plot.with_bact,
+         width=11, height=6,units="in",
+         dpi=300,device = image.format)
+}
 
 #' Check library size per sample (not included)
 ps.q.agg%>%
@@ -309,5 +311,5 @@ ps.q.agg%>%
   geom_bar(stat = "identity")
 
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
