@@ -1,0 +1,14 @@
+book_filename: "metagenome"
+new_session: yes
+rmd_files: 
+  - index.Rmd
+  - 001-kraken2-classification-stats.Rmd
+  - 002-phyloseq-kraken2.Rmd
+  - 003-summary-stats-kraken2.Rmd
+  - 004-barplots-kraken2.Rmd
+  - 005-kraken2-maaslin2.Rmd
+  - 006-mag-combine-all-data.Rmd
+  - 007-summary-stats-mag.Rmd
+  - 008-mag-taxonomy-plots.Rmd
+  - 009-mag-gene-annotation-combine-data.Rmd
+  - 010-mag-gene-annotation-plots.Rmd
