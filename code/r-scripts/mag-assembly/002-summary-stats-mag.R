@@ -96,7 +96,7 @@ final.summary.stats%>%
   print()
 
 write.table(final.summary.stats,
-            file = "./output/rtables/mag-summary-stats.tsv",
+            file = file.path(mag.tables, "mag-summary-stats.tsv"),
             sep = "\t",
             quote = FALSE,
             row.names = F)
@@ -332,5 +332,5 @@ blastn.coverm.megahit%>%
   knitr::kable(format = "simple")%>%
   print()
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
