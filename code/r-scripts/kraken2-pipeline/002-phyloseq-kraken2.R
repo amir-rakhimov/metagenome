@@ -59,7 +59,8 @@ combined.report<-combined.report%>%
               values_from = Abundance)
 
 dim(combined.report)
-head(combined.report)
+head(combined.report)%>%
+  knitr::kable(format = "simple")
 
 # all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
 # combined.report[,all.ranks][is.na(combined.report[,all.ranks])]<-"NA"
@@ -96,7 +97,8 @@ df.taxa$Genus<-
   gsub("d__|p__|c__|o__|f__|g__","",df.taxa$Genus)
 df.taxa$Species<-
   gsub("d__|p__|c__|o__|f__|g__|s__","",df.taxa$Species)
-head(df.taxa)
+head(df.taxa)%>%
+  knitr::kable(format = "simple")
 #+ echo=FALSE
 ## 3. Convert into phyloseq taxonomyTable object. ####
 #'
@@ -149,136 +151,6 @@ if(!file.exists(ps.q.rel.raw.fname)){
   saveRDS(ps.q.rel,
           file = ps.q.rel.raw.fname)
 }
-#' 
-#' #+ echo=FALSE
-#' ## 5. Convert the phyloseq object into a dataframe. ####
-#' #'
-#' #' ## Convert the phyloseq object into a dataframe.
-#' ps.q.agg<-ps.q %>%
-#'   psmelt() 
-#' ps.q.agg.phylum<-ps.q %>%
-#'   tax_glom("Phylum",NArm = FALSE) %>% # agglomerate by phylum
-#'   psmelt()  # transform the phyloseq object into an R dataframe
-#' ps.q.agg.family<-ps.q %>%
-#'   tax_glom("Family",NArm = FALSE) %>% # agglomerate by family
-#'   psmelt()  # transform the phyloseq object into an R dataframe
-#' ps.q.agg.genus<-ps.q %>%
-#'   tax_glom("Genus",NArm = FALSE) %>% # agglomerate by genus
-#'   psmelt()  # transform the phyloseq object into an R dataframe
-#' ps.list <- list("OTU" = ps.q.agg, 
-#'                 "Phylum" = ps.q.agg.phylum,
-#'                 "Family" = ps.q.agg.family, 
-#'                 "Genus" = ps.q.agg.genus)
-#' 
-#' for (ps.df.index in names(ps.list)){
-#'   ps.df <- ps.list[[ps.df.index]]
-#'   print(paste("Parsing data from the", ps.df.index, "table"))
-#'   print(paste("Number of rows in the dataframe:", nrow(ps.df)))
-#'   
-#'   #' Remove human data:
-#'   print("Removing rows with human data")
-#'   ps.df<-ps.df%>%
-#'     filter(!grepl(paste(c("Chordata","Mammalia","Primates",
-#'                         "Hominidae","Homo","Homo_sapiens"),collapse = "|"),
-#'                   get(ps.df.index)))
-#'   # Remove entries with zero Abundance.
-#'   print("Removing rows with zero Abundance")
-#'   ps.df <- ps.df %>%
-#'     dplyr::select(-sample_Sample)%>% # remove the duplicate column
-#'     filter(Abundance!=0)
-#'   print(paste("Number of rows in the filtered dataset:",nrow(ps.df)))
-#'   ### 5.1 Number of samples in the filtered dataset. ####
-#'   print(paste("Number of samples in the filtered dataset:"))
-#'   ps.df%>%
-#'     distinct(Sample)%>%
-#'     tally()%>%
-#'     print()
-#'   ### 5.2 Number of features in the filtered dataset. ####
-#'   print(paste("Number of features in the filtered dataset:"))
-#'   ps.df%>%
-#'     distinct(OTU)%>%
-#'     tally()%>%
-#'     print()
-#'   ### 5.3 Total frequency in the filtered dataset. ####
-#'   print(paste("Total frequency in the filtered dataset:"))
-#'   ps.df%>%
-#'     summarise(TotalAbundance=sum(Abundance))%>%
-#'     print()
-#'   ### 5.4 Summary statistics (min, median, max, quartiles) of the filtered dataset. ####
-#'   print(paste("Summary statistics (min, median, max, quartiles) of the filtered dataset:"))
-#'   ps.df%>%
-#'     dplyr::select(Sample,Abundance)%>%
-#'     group_by(Sample)%>%
-#'     summarise(FrequencyPerSample=sum(Abundance))%>%
-#'     dplyr::select(FrequencyPerSample)%>%
-#'     summary()%>%
-#'     print()
-#'   ## 6. Add relative abundance column: Abundance divided by total abundance in a sample. ####
-#'   ps.df<-ps.df%>%
-#'     group_by(class,Sample)%>%
-#'     mutate(TotalSample=sum(Abundance))%>%
-#'     group_by_at(c("class","Sample",ps.df.index))%>%
-#'     mutate(RelativeAbundance=Abundance/TotalSample*100)%>%
-#'     ungroup()
-#'   # Sanity check: is total relative abundance of each sample 100%?
-#'   print(paste("Sanity check: is total relative abundance of each sample 100%?"))
-#'   ps.df %>%
-#'     group_by(Sample) %>% # Group by sample id
-#'     summarise(sumRelativeAbundance = sum(RelativeAbundance)) %>% # Sum all abundances
-#'     mutate(diff_from_100 = sumRelativeAbundance-100, # compare each value to 100
-#'            is_different = as.logical(round(diff_from_100,digits = 10)))%>% 
-#'     arrange(desc(diff_from_100))%>% # show the most deviating samples
-#'     print()
-#'   ps.df %>%
-#'     group_by(Sample)%>%
-#'     mutate(sumRelativeAbundance = sum(RelativeAbundance)) %>%
-#'     ungroup()%>%
-#'     distinct(Sample,.keep_all = T)%>%
-#'     ggplot(aes(x=Sample,y=sumRelativeAbundance))+
-#'     geom_bar(stat="identity")+
-#'     coord_flip()
-#'   print(last_plot())
-#'   ### 6.1 Add mean relative abundance data. ####
-#'   # We will group the dataset by three columns: class (animal host), 
-#'   # two taxonomic ranks (e.g Genus, Family), and maybe OTU (actually ASV)
-#'   # if we agglomerate at ASV level.
-#'   
-#'   # Group the dataframe by classes (animal hosts).
-#'   # First, we calculate the library size per sample.
-#'   # Then, inside each class, we take a agglom.rank, sum its abundances from all samples,
-#'   # then take a mean. This will be our MeanRelativeAbundance.
-#'   ps.df<-ps.df%>%
-#'     group_by(class)%>% # group by class (animal host),
-#'     mutate(TotalClass=sum(Abundance))%>%
-#'     group_by_at(c("class",ps.df.index))%>%
-#'     mutate(TotalAgglomRank=sum(Abundance))%>%
-#'     mutate(MeanRelativeAbundance=TotalAgglomRank/TotalClass*100)%>%
-#'     ungroup()
-#'   if(ps.df.index != "OTU"){
-#'     ps.df<-ps.df%>%
-#'       dplyr::select(-OTU)
-#'   }
-#'   ps.df<-ps.df%>%
-#'     ungroup()%>%
-#'     dplyr::select(-TotalClass,-TotalSample,-TotalAgglomRank)
-#'   ps.list[[ps.df.index]]<-ps.df
-#'   
-#'   # Save the tables in TSV format and as an RDS object
-#'   # write.table(ps.q.agg,
-#'   #             file=file.path(rtables.directory,paste(
-#'   #               paste(format(Sys.time(),format="%Y%m%d"),
-#'   #                     format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#'   #               "phyloseq-kraken2",agglom.rank,
-#'   #               "table.tsv",sep="-")),
-#'   #             row.names = F,sep = "\t")
-#'   # saveRDS(ps.q.agg,
-#'   #         file=file.path(rdafiles.directory,paste(
-#'   #           paste(format(Sys.time(),format="%Y%m%d"),
-#'   #                 format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#'   #           "phyloseq-kraken2",agglom.rank,
-#'   #           "table.rds",sep="-")))
-#'   
-#' }
 
 sessionInfo()
 rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
