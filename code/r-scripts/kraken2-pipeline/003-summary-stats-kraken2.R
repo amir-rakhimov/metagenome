@@ -27,59 +27,49 @@
 #'
 #' ## Load necessary libraries and scripts.
 # install.packages(c("tidyverse","ggtext"))
+library(phyloseq)
 library(tidyverse)
 library(ggtext)
 library(vegan)
+#+ echo=FALSE
+## 2. Import the config file. ####
+#' 
+#' ## Import the config file.
+source(here::here("config/R/config.R"))# config file with global variables
+source(here::here("config/R/themes.R"))# config file with themes
 
 #' Load necessary scripts.
-source("../amplicon_nmr/code/r-scripts/get_n_uniq_taxa_per_host.R")
-source("../amplicon_nmr/code/r-scripts/create_summary_stats_table.R")
-source("../amplicon_nmr/code/r-scripts/add_relab_to_tax_df.R")
-source("../amplicon_nmr/code/r-scripts/add_agegroup_to_tax_df.R")
-source("../amplicon_nmr/code/r-scripts/get_unclassified_summary_stats.R")
-source("../amplicon_nmr/code/r-scripts/ggplot_species.R")
-#+ echo=FALSE
-## 2. Specifying parameters and directory/file names. #### 
-#'
-#' ## Specifying parameters and directory/file names. 
-#' Directories with input files:
-rdafiles.directory<-"./output/rdafiles"
-rtables.directory<-"./output/rtables"
+source(file.path(util.functions.r,"get_mean_and_sd_relab_from_phyloseq.R"))
+source(file.path(util.functions.r,"create_summary_stats.R"))
+source(file.path(util.functions.r,"multi_rarefy_phyloseq.R"))
+source(file.path(util.functions.r,"get_average_summary_stats.R"))
 
-#' Import datasets as rds files
-ps.q.agg.date_time<-"20241003_13_52_43"
-ps.q.agg.genus.date_time<-"20241003_13_56_28"
-ps.q.agg.family.date_time<-"20241003_13_57_30"
-ps.q.agg.phylum.date_time<-"20241003_13_57_59"
-
-ps.q.agg<-readRDS(file=file.path(
-  rdafiles.directory,
-  paste(ps.q.agg.date_time,"phyloseq","kraken2","Species",
-        "table.rds",sep = "-")))
-ps.q.agg.genus<-readRDS(file=file.path(
-  rdafiles.directory,
-  paste(ps.q.agg.genus.date_time,"phyloseq","kraken2","Genus",
-        "table.rds",sep = "-")))
-
-ps.q.agg.family<-readRDS(file=file.path(
-  rdafiles.directory,
-  paste(ps.q.agg.family.date_time,"phyloseq","kraken2","Family",
-        "table.rds",sep = "-")))
-ps.q.agg.phylum<-readRDS(file=file.path(
-  rdafiles.directory,
-  paste(ps.q.agg.phylum.date_time,"phyloseq","kraken2","Phylum",
-        "table.rds",sep = "-")))
-#' Import metadata
-custom.md<-readRDS("../amplicon_nmr/output/rdafiles/custom.md.ages.rds")
-custom.md<-custom.md%>%
-  filter(Sample%in%ps.q.agg$Sample, 
-         sequencing_type =="Naked mole-rat whole metagenome sequencing")
+source(file.path(util.functions.r,"get_unclassified_summary_stats.R"))
+source(file.path(util.functions.r,"get_average_unclassified_summary_stats.R"))
+source(file.path(util.functions.r,"ggplot_species.R"))
 
 #+ echo=FALSE
-## 3. Setup plots. ####
+## 3. Import raw datasets as rds files. ####
 #'
-#' ## Setup plots.
-sample.levels<-custom.md%>%
+#' Import raw datasets as rds files.
+ps.q <- readRDS(file = ps.q.raw.fname)
+ps.q.rel <- readRDS(file = ps.q.rel.raw.fname)
+custom.md <- readRDS(custom.md.path)%>%
+  filter(sequencing_type =="Naked mole-rat whole metagenome sequencing")
+gg.labs.name <- "Age group"
+#+ echo=FALSE
+## 4. Calculating summary statistics. ####
+#'
+#' ## Calculating summary statistics.
+#' 
+#' Load the NMR age metadata.
+custom.md.ages<-readRDS(file.path(metadatadir,"custom.md.ages.rds"))%>%
+  filter(sequencing_type == "Naked mole-rat whole metagenome sequencing")
+pretty.level.names <-names(table(custom.md$agegroup))
+names(pretty.level.names)<-names(table(custom.md$agegroup))
+
+#' Setup sample levels for NMR for barplots.
+sample.levels<-custom.md.ages%>%
   ungroup()%>%
   select(Sample,age)%>%
   arrange(age)%>%
@@ -88,422 +78,446 @@ sample.levels<-custom.md%>%
   mutate(Sample=factor(Sample,levels=Sample),
          NewSample=factor(NewSample,levels=NewSample))
 
-pretty.level.names<-names(table(custom.md$old_agegroup))
-names(pretty.level.names)<-names(table(custom.md$agegroup))
-custom.levels<-names(pretty.level.names)
-gg.labs.name<-"Age group"
-gg.title.groups<-"age groups"
+
+#' Agglomerate the `ps.q.filtered` object and convert it into a dataframe with `psmelt()` 
+#' function. Then, save it in tab-separated format and as an rds object. 
+melt_phyloseq_and_save <-function (ps, ps.index){
+  ps.indexes <- c("Kingdom","Phylum","Class","Order", "Family", "Genus","Species")
+  
+  if(ps.index == "OTU"){
+    ps.df <- ps %>%
+      psmelt()
+  }else{
+    ps.df <- ps %>%
+      tax_glom(ps.index, NArm=FALSE)%>%
+      psmelt()
+  }
+  
+  if(ps.index == "OTU"){
+    ps.df <- ps.df %>%
+      dplyr::select(all_of(c("OTU","Sample", "Abundance", "class", ps.indexes)))
+  }else{
+    selected.indexes <- ps.indexes[1:match(ps.index, ps.indexes)] # vector of taxonomic ranks to select
+    ps.df <- ps.df %>%
+      dplyr::select(all_of(c("Sample", "Abundance", "class", selected.indexes)))
+  }
+  # Save the tables in TSV format and as an RDS object
+  ps.df.fname <- case_when(ps.index =="OTU" ~ ps.q.agg.asv.fname.no_ext,
+                           ps.index =="Species" ~ ps.q.agg.species.fname.no_ext,
+                           ps.index =="Genus" ~ ps.q.agg.genus.fname.no_ext,
+                           ps.index =="Family" ~ps.q.agg.family.fname.no_ext,
+                           ps.index =="Phylum" ~ ps.q.agg.phylum.fname.no_ext
+  ) 
+  tsv.fname <- file.path(community.composition.tables, paste0(ps.df.fname,".tsv"))
+  rda.fname <- file.path(community.composition.rdafiles, paste0(ps.df.fname,".rds"))
+  if(!file.exists(tsv.fname)){
+    write.table(ps.df,
+                file = tsv.fname,
+                row.names = F,sep = "\t")
+  }
+  if(!file.exists(rda.fname)){
+    saveRDS(ps.df,
+            file = rda.fname)
+  }
+  return(ps.df)
+}
+
+ps.q.agg.asv<-melt_phyloseq_and_save(ps.q, ps.index = "OTU")%>%
+  filter(Abundance!=0)%>%
+  as_tibble()
+ps.q.rel.agg.asv<- ps.q.rel %>%
+  psmelt() %>%
+  dplyr::select(all_of(c("OTU","Sample", "Abundance", "class", 
+                         c("Kingdom","Phylum","Class","Order", "Family", "Genus","Species"))))%>%
+  filter(Abundance!=0)%>%
+  as_tibble()%>%
+  rename("RelativeAbundance" = "Abundance")
+ps.q.agg.species<-melt_phyloseq_and_save(ps.q, ps.index = "Species")%>%
+  filter(Abundance!=0)%>%
+  as_tibble()
+ps.q.agg.genus <- melt_phyloseq_and_save(ps.q, ps.index = "Genus")%>%
+  filter(Abundance!=0)%>%
+  as_tibble()
+ps.q.agg.family <- melt_phyloseq_and_save(ps.q, ps.index = "Family")%>%
+  filter(Abundance!=0)%>%
+  as_tibble()
+ps.q.agg.phylum<-melt_phyloseq_and_save(ps.q, ps.index = "Phylum")%>%
+  filter(Abundance!=0)%>%
+  as_tibble()
+
+
+#' Save filtered phyloseq objects and the contents (OTU table, taxonomy, tree).
+if(!file.exists(ps.q.raw.fname)){
+  saveRDS(ps.q,
+          file = ps.q.raw.fname)
+}
+
+if(!file.exists(ps.q.rel.raw.fname)){
+  saveRDS(ps.q.rel,
+          file = ps.q.rel.raw.fname)
+}
+
+if(!file.exists(ps.q.raw.otu_table.fname)){
+  saveRDS(ps.q@otu_table %>% as.matrix() %>%as.data.frame(),
+          file = ps.q.raw.otu_table.fname)
+}
+if(!file.exists(ps.q.raw.tax_table.fname)){
+  saveRDS(ps.q@tax_table%>% as.matrix() %>%as.data.frame(),
+          file = ps.q.raw.tax_table.fname)
+}
+ps.q.raw.otu_table.fname.tsv <- 
+  file.path(community.composition.tables, 
+            gsub("rds", "tsv",basename(ps.q.raw.otu_table.fname))
+)
+if(!file.exists(ps.q.raw.otu_table.fname.tsv)){
+  write.table(ps.q@otu_table%>% as.matrix() %>%as.data.frame() %>% rownames_to_column("OTU"),
+              file = ps.q.raw.otu_table.fname.tsv,
+              sep = "\t", 
+              row.names = FALSE)
+  
+}
+ps.q.raw.tax_table.fname.tsv <- 
+  file.path(community.composition.tables, 
+            gsub("rds", "tsv",basename(ps.q.raw.tax_table.fname)))
+if(!file.exists(ps.q.raw.tax_table.fname.tsv)){
+  write.table(ps.q@tax_table%>% as.matrix() %>%as.data.frame()%>% rownames_to_column("OTU"),
+              file = ps.q.raw.tax_table.fname.tsv,
+              sep = "\t", 
+              row.names = FALSE)
+  
+}
+
 
 #+ echo=FALSE
-## 4. Calculating summary statistics. ####
+### 4.1 Calculating summary statistics per host. ####
 #'
-#' ## Calculating summary statistics.
+#' ### Calculating summary statistics per host.
 #' 
 #+ echo=FALSE
-### 4.1 Check the total number of unique Species/phyla/families/genera per class. ####
-#' 
-#' ### Check the total number of unique Species/phyla/families/genera per class.
-#' Here, Species are called ASV because the same function is used in the 
-#' 16S rRNA gene sequencing analysis.  
-#' We will use it for the summary table in the next section.
-n.species.per.host<-get_n_uniq_taxa_per_host(ps.q.agg,"Species")
-n.phylum.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.phylum,"Phylum")
-n.family.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.family,"Family")
-n.genus.per.host<-get_n_uniq_taxa_per_host(ps.q.agg.genus,"Genus")
-#+ echo=FALSE
-### 4.2 Create a summary table. ####
-#'
-#' ### Create a summary table.
 #' The columns are:  
 #' - Total reads  
 #' - Library size (mean Abundance ± SD)  
-#' - Number of Species  
-#' - Number of phyla  
-#' - Number of families  
-#' - Number of genera  
-summary.stats.table<-create_summary_stats_table(ps.q.agg,
-                                          n.asv.table = n.species.per.host,
-                                          n.phylum.table = n.phylum.per.host,
-                                          n.family.table = n.family.per.host,
-                                          n.genus.table = n.genus.per.host)
-print(summary.stats.table)
-# write.table(summary.stats.table,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","summary-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+#' - Number of ASV per host  
+#' - Number of phyla per host  
+#' - Number of families per host  
+#' - Number of genera per host  
+#' Here, Species are called ASV because the same function is used in the 
+#' 16S rRNA gene sequencing analysis.  
+summary.stats <- create_summary_stats(ps.q.agg.asv)
+knitr::kable(as.data.frame(summary.stats),format = "simple")
+summary.stats.fname<-file.path(community.composition.tables,
+                               "summary-table.tsv")
+if(!file.exists(summary.stats.fname)){
+  write.table(summary.stats,
+              file=summary.stats.fname,
+              row.names = F,sep = "\t")
+}
 
 #+ echo=FALSE
 ### 4.2 Create a summary table for each sample. ####
 #'
 #' ### Create a summary table for each sample.
-n.taxa.per_sample<-ps.q.agg%>%
+n.taxa.per_sample<-ps.q.agg.asv%>%
   group_by(Sample)%>%
   summarise(n_species=n_distinct(Species),
             n_genera=n_distinct(Genus),
             n_families=n_distinct(Family),
             n_phyla=n_distinct(Phylum))
-n.taxa.per_sample
-# write.table(n.taxa.per_sample,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","n_taxa-per-sample-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-
-#+ echo=FALSE
-## 5. Add relative abundance and average relative abundance columns. ####
-#'
-#' ## Add relative abundance and average relative abundance columns.
-ps.q.agg.phylum.relab<-add_relab_to_tax_df(ps.q.agg.phylum,"Phylum")
-ps.q.agg.family.relab<-add_relab_to_tax_df(ps.q.agg.family,"Family")
-ps.q.agg.genus.relab<-add_relab_to_tax_df(ps.q.agg.genus,"Genus")
-ps.q.agg.relab<-add_relab_to_tax_df(ps.q.agg,"Species")
-head(ps.q.agg.phylum.relab)
-head(ps.q.agg.family.relab)
-head(ps.q.agg.genus.relab)
-head(ps.q.agg.relab)
-
-#+ echo=FALSE
-## 6. Add agegroup variable to NMR data (must run for plotting). ####
-#'
-#' ## Add agegroup variable to NMR data (must run for plotting).
-ps.q.agg.relab<-add_agegroup_to_tax_df(ps.q.agg.relab,"Species",custom.md)
-ps.q.agg.genus.relab<-add_agegroup_to_tax_df(ps.q.agg.genus.relab,"Genus",custom.md)
-ps.q.agg.family.relab<-add_agegroup_to_tax_df(ps.q.agg.family.relab,"Family",custom.md)
-head(ps.q.agg.relab)
-#+ echo=FALSE
-## 7. Rarefy the table and check the percentage of unclassified taxa. ####
-#'
-#' ## Rarefy the table and check the percentage of unclassified taxa. ####
-#' Convert the data frame into wide format: rows are samples and columns
-#' are taxa
-get_rarefied_table<-function(tax.df,tax.rank,host.classes){
-  tax.df.wide<-tax.df%>%
-    filter(class %in% host.classes,Abundance!=0)%>%
-    dplyr::select(Sample,Abundance,class,all_of(tax.rank))%>%
-    filter(Abundance!=0)%>%
-    pivot_wider(names_from = all_of(tax.rank),
-                values_from = "Abundance",
-                values_fill = 0)%>%
-    as.data.frame()%>%
-    column_to_rownames("Sample")%>% # Set sample names as row names
-    dplyr::select(-class)
-  # Find the smallest sample size
-  min.n_seqs.all<-tax.df%>%
-    filter(class %in% host.classes,Abundance!=0)%>%
-    dplyr::select(Sample,all_of(tax.rank),Abundance)%>%
-    group_by(Sample)%>%
-    summarize(n_seqs=sum(Abundance))%>%
-    summarize(min=min(n_seqs))%>%
-    pull(min)
-  print(paste("Smallest sample size:", min.n_seqs.all))
-  
-  ### Rarefied asv table with vegan ####
-  set.seed(1)
-  tax.df.rare<-rrarefy(tax.df.wide,sample=min.n_seqs.all)
-  tax.df.rare<-tax.df.rare%>%
-    as_tibble(rownames="Sample")%>%
-    pivot_longer(-Sample)%>%
-    as.data.frame()%>%
-    left_join(unique(tax.df[,c("Sample","class")]),
-              by="Sample")
-  if(tax.rank=="OTU"){
-    tax.df.rare<-tax.df.rare%>%
-      rename(OTU=name,Abundance=value)%>%
-      filter(Abundance!=0)  
-  }else{
-    # rename the 'name' column corresponding to the tax.rank
-    tax.df.rare[,paste(tax.rank)]<-tax.df.rare$name
-    tax.df.rare<-tax.df.rare%>%
-      dplyr::select(-name)%>%
-      rename(Abundance=value)%>%
-      filter(Abundance!=0)
-  }
-  # write.table(tax.df.rare,
-  #             file = file.path(rtables.directory,paste0(
-  #               paste(
-  #                 paste(format(Sys.time(),format="%Y%m%d"),
-  #                       format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-  #                 "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
-  #                 paste(host.classes,collapse = '-'),sep = "-"),
-  #               ".tsv")),
-  #             row.names = F,
-  #             sep = "\t")
-  # saveRDS(tax.df.rare,
-  #         file = file.path(rdafiles.directory,paste0(
-  #           paste(
-  #             paste(format(Sys.time(),format="%Y%m%d"),
-  #                   format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-  #             "kraken2-ps.q.df.rare-nonfiltered",tax.rank,
-  #             paste(host.classes,collapse = '-'),sep = "-"),
-  #           ".rds")))
-  return(tax.df.rare)
+knitr::kable(n.taxa.per_sample,format = "simple")
+n.taxa.per_sample.fname<-file.path(community.composition.tables,
+                               "kraken2-n_taxa-per-sample-table.tsv")
+if(!file.exists(n.taxa.per_sample.fname)){
+  write.table(n.taxa.per_sample,
+              file=n.taxa.per_sample.fname,
+              row.names = F,sep = "\t")
 }
 
-ps.q.agg.rare<-get_rarefied_table(ps.q.agg,"Species","NMR")
-head(ps.q.agg.rare)
-
 #+ echo=FALSE
-### 7.1 Add relative abundances and taxonomic information to the rarefied dataframe. ####
-#' 
-#' ### Add relative abundances and taxonomic information to the rarefied dataframe. 
-#' Species level:
-ps.q.agg.rare.relab<-add_relab_to_tax_df(ps.q.agg.rare,"Species")
-head(ps.q.agg.rare.relab)
-
-#' Add other taxonomic ranks to the dataframe
-ps.q.agg.rare.relab<-ps.q.agg.rare.relab%>%
-  left_join(unique(ps.q.agg[,c("Kingdom","Phylum","Class","Order","Family",
-                               "Genus","Species","OTU")]))
-head(ps.q.agg.rare.relab)
-
-#+ echo=FALSE
-### 7.3 Create a summary stats table for the rarefied dataframe. ####
-#' 
-#' ### Create a summary stats table for the rarefied dataframe.
-n.asv.per.host.rare<-get_n_uniq_taxa_per_host(ps.q.agg.rare.relab,"Species")
-n.phylum.per.host.rare<-get_n_uniq_taxa_per_host(ps.q.agg.rare.relab,"Phylum")
-n.family.per.host.rare<-get_n_uniq_taxa_per_host(ps.q.agg.rare.relab,"Family")
-n.genus.per.host.rare<-get_n_uniq_taxa_per_host(ps.q.agg.rare.relab,"Genus")
-
-summary.stats.table.rare<-create_summary_stats_table(ps.q.agg.rare,
-                                                     n.asv.per.host.rare,
-                                                     n.phylum.per.host.rare,
-                                                     n.family.per.host.rare,
-                                                     n.genus.per.host.rare)
-summary.stats.table.rare
-summary.stats.table
-
-#+ echo=FALSE
-## 8. Check the most abundant phyla, families, genera in NMR. ####
+## 5. Calculate average, min, max, and SD relative abundances from phyloseq object. ####
 #'
-#' ## Check the most abundant phyla, families, genera in NMR.
+#' ## Calculate average, min, max, and SD relative abundances from phyloseq object.
+#' For phyla, families, and genera, no grouping. For species 
+#' (here, we call them OTU), create a dataframe by age group and total (no grouping).
+mean_sd_relab.nmr_no_groups.phyla <- get_mean_and_sd_relab_from_phyloseq(ps.q.rel, "class", "Phylum")
+mean_sd_relab.nmr_no_groups.families <- get_mean_and_sd_relab_from_phyloseq(ps.q.rel, "class", "Family")
+mean_sd_relab.nmr_no_groups.genera <- get_mean_and_sd_relab_from_phyloseq(ps.q.rel, "class", "Genus")
+#' By age group.
+mean_sd_relab.nmr_ages.asv <- 
+  get_mean_and_sd_relab_from_phyloseq(ps.q.rel, "agegroup", "OTU")
+#' In total (no grouping).
+mean_sd_relab.nmr_no_groups.asv <- 
+  get_mean_and_sd_relab_from_phyloseq(ps.q.rel, "class", "OTU")
+
+knitr::kable(head(mean_sd_relab.nmr_no_groups.phyla),format = "simple")
+knitr::kable(head(mean_sd_relab.nmr_no_groups.families),format = "simple")
+knitr::kable(head(mean_sd_relab.nmr_no_groups.genera),format = "simple")
+knitr::kable(head(mean_sd_relab.nmr_ages.asv),format = "simple")
+knitr::kable(head(mean_sd_relab.nmr_no_groups.asv),format = "simple")
+
+#' Save tables.
+mean_sd_relab.nmr_no_groups.phyla.fname <- 
+  file.path(community.composition.tables,
+            "mean-max-min-sd-relab-nmr_no_groups-Phylum.tsv")
+if(!file.exists(mean_sd_relab.nmr_no_groups.phyla.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.phyla,
+              file = mean_sd_relab.nmr_no_groups.phyla.fname,
+              row.names = F,sep = "\t")
+}
+
+mean_sd_relab.nmr_no_groups.families.fname <-
+  file.path(community.composition.tables,
+            "mean-max-min-sd-relab-nmr_no_groups-Family.tsv")
+if(!file.exists (mean_sd_relab.nmr_no_groups.families.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.families,
+              file = mean_sd_relab.nmr_no_groups.families.fname,
+              row.names = F,sep = "\t")
+}
+
+mean_sd_relab.nmr_no_groups.genera.fname <-
+  file.path(community.composition.tables,
+            "mean-max-min-sd-relab-nmr_no_groups-Genus.tsv")
+if(! file.exists (mean_sd_relab.nmr_no_groups.genera.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.genera,
+              file = mean_sd_relab.nmr_no_groups.genera.fname,
+              row.names = F,sep = "\t")
+}
+
+mean_sd_relab.nmr_ages.asv.fname <-
+  file.path(community.composition.tables,
+            "mean-max-min-sd-relab-nmr_ages-Species.tsv")
+if(! file.exists (mean_sd_relab.nmr_ages.asv.fname)){
+  write.table(mean_sd_relab.nmr_ages.asv,
+              file = mean_sd_relab.nmr_ages.asv.fname,
+              row.names = F,sep = "\t")
+}
+mean_sd_relab.nmr_no_groups.asv.fname <-
+  file.path(community.composition.tables,
+            "mean-max-min-sd-relab-nmr_no_groups-Species.tsv")
+if(! file.exists (mean_sd_relab.nmr_no_groups.asv.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.asv,
+              file = mean_sd_relab.nmr_no_groups.asv.fname,
+              row.names = F,sep = "\t")
+}
+
+#+ echo=FALSE
+## 6. Rarefy the table and check the percentage of unclassified taxa. ####
+#'
+#' ## Rarefy the table and check the percentage of unclassified taxa. ####
+#' First, perform multiple rarefaction:
+# print(paste("Rarefying data with", rare.num_samples, "subsamples"))
+# rarefied.fname.all <- file.path(community.composition.rdafiles,paste0(
+#   paste("ps.q.rare","OTU",paste0(rare.num_samples,"_iter"),
+#         paste("NMR",collapse = '-'),sep = "-"),".rds"))
+# if(!file.exists(rarefied.fname.all)){
+#   ps.q.agg.asv.nmr.rare<-multi_rarefy_phyloseq(ps.q,
+#                                                niter = rare.num_samples,
+#                                                output.filename.rds =  rarefied.fname.all
+#                                                )
+# }else{
+#   ps.q.agg.asv.nmr.rare<- readRDS(rarefied.fname.all)
+# }
+
+#' #+ echo=FALSE
+#' ### 6.3 Create a summary stats table for the rarefied dataframe. ####
+#' #' 
+#' #' ### Create a summary stats table for the rarefied dataframe.
+#' summary.stats.rare<-get_average_summary_stats(rare.list.asv = ps.q.agg.asv.nmr.rare)
+#' knitr::kable(summary.stats.rare, format ="simple")
+#' summary.stats.rare.fname<-file.path(community.composition.tables,
+#'                                     "summary-table-rarefied.tsv")
+#' if(!file.exists(summary.stats.rare.fname)){
+#'   write.table(summary.stats.rare,
+#'               file=summary.stats.rare.fname,
+#'               row.names = F,sep = "\t")
+#' }
+
+#+ echo=FALSE
+## 8. Check the most abundant bacterial phyla, families, genera in NMR. ####
+#'
+## Check the most abundant bacterial phyla, families, genera in NMR.
 #' Phyla:
-ps.q.agg.dominant.phyla<-ps.q.agg.phylum.relab%>%
-  group_by(class,Phylum)%>%
-  mutate(min=min(RelativeAbundance),
-         max=max(RelativeAbundance),
-         n=n())%>%
-  distinct(class,Kingdom,Phylum, MeanRelativeAbundance,sdRelativeAbundance,
-           min, max, n)%>%
-  group_by(class,Kingdom,Phylum)%>%
-  arrange(class,desc(MeanRelativeAbundance))%>%
-  ungroup()
-head(ps.q.agg.dominant.phyla)
+mean_sd_relab.nmr_no_groups.phyla %>%
+  filter(Kingdom == "Bacteria")%>%
+  head()%>%
+  knitr::kable(format = "simple")
 
 #' Families:
-ps.q.agg.dominant.families<-ps.q.agg.family.relab%>%
-  group_by(class,Family)%>%
-  mutate(min=min(RelativeAbundance),
-         max=max(RelativeAbundance),
-         n=n())%>%
-  distinct(class, Kingdom,Phylum, Family, MeanRelativeAbundance, sdRelativeAbundance, 
-           min,max,n)%>%
-  group_by(class, Kingdom,Phylum,Family)%>%
-  arrange(class,desc(MeanRelativeAbundance))%>%
-  ungroup()
-head(ps.q.agg.dominant.families)
+mean_sd_relab.nmr_no_groups.families %>%
+  filter(Kingdom == "Bacteria")%>%
+  head()%>%
+  knitr::kable(format = "simple")
 
 #' Genera:
-ps.q.agg.dominant.genera<-ps.q.agg.genus.relab%>%
-  group_by(class, Genus)%>%
-  mutate(min=min(RelativeAbundance),
-         max=max(RelativeAbundance),
-         n=n())%>%
-  distinct(class, Kingdom,Phylum,Family,Genus, MeanRelativeAbundance,sdRelativeAbundance,
-           min, max, n)%>%
-  group_by(class, Kingdom, Phylum,Family,Genus)%>%
-  arrange(class,desc(MeanRelativeAbundance))%>%
-  ungroup()
-head(ps.q.agg.dominant.genera)
+mean_sd_relab.nmr_no_groups.genera %>%
+  filter(Kingdom == "Bacteria")%>%
+  head()%>%
+  knitr::kable(format = "simple")
+
 
 #' Species:
-ps.q.agg.dominant.species<-ps.q.agg.relab%>%
-  group_by(class, Species)%>%
-  mutate(min=min(RelativeAbundance),
-         max=max(RelativeAbundance),
-         n=n())%>%
-  distinct(class, Kingdom,Phylum,Family,Genus,Species, 
-           MeanRelativeAbundance,sdRelativeAbundance,
-           min, max, n)%>%
-  group_by(class, Kingdom, Phylum,Family,Genus,Species)%>%
-  arrange(class,desc(MeanRelativeAbundance))%>%
-  ungroup()
-head(ps.q.agg.dominant.species)
+mean_sd_relab.nmr_no_groups.asv %>%
+  filter(Kingdom == "Bacteria")%>%
+  head()%>%
+  knitr::kable(format = "simple")
 
 #+ echo=FALSE
 ## 8.1 Check the most abundant non-bacterial phyla, families, genera in NMR. ####
 #'
 #' ## Check the most abundant non-bacterial phyla, families, genera in NMR.
 #' Non-bacterial phyla:
-ps.q.agg.dominant.phyla.nonbact<-ps.q.agg.dominant.phyla%>%
+mean_sd_relab.nmr_no_groups.phyla.nonbact<-mean_sd_relab.nmr_no_groups.phyla%>%
   filter(Kingdom != "Bacteria")
-head(ps.q.agg.dominant.phyla.nonbact)
+head(mean_sd_relab.nmr_no_groups.phyla.nonbact)%>%
+  knitr::kable(format = "simple")
 #' Non-bacterial families:
-ps.q.agg.dominant.families.nonbact<-ps.q.agg.dominant.families%>%
+mean_sd_relab.nmr_no_groups.families.nonbact<-mean_sd_relab.nmr_no_groups.families%>%
   filter(Kingdom != "Bacteria")
-head(ps.q.agg.dominant.families.nonbact)
+head(mean_sd_relab.nmr_no_groups.families.nonbact)%>%
+  knitr::kable(format = "simple")
 #' Non-bacterial genera:
-ps.q.agg.dominant.genera.nonbact<-ps.q.agg.dominant.genera%>%
+mean_sd_relab.nmr_no_groups.genera.nonbact<-mean_sd_relab.nmr_no_groups.genera%>%
   filter(Kingdom != "Bacteria")
-head(ps.q.agg.dominant.genera.nonbact)
+head(mean_sd_relab.nmr_no_groups.genera.nonbact)%>%
+  knitr::kable(format = "simple")
 #' Non-bacterial species:
-ps.q.agg.dominant.species.nonbact<-ps.q.agg.dominant.species%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact<-mean_sd_relab.nmr_no_groups.asv%>%
   filter(Kingdom != "Bacteria")
-head(ps.q.agg.dominant.species.nonbact)
+head(mean_sd_relab.nmr_no_groups.asv.nonbact)%>%
+  knitr::kable(format = "simple")
 
-# write.table(ps.q.agg.dominant.phyla,
-#             file=file.path(rtables.directory,
-#                            paste("20241003_15_45_51",#paste(format(Sys.time(),format="%Y%m%d"),
-#                                  # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-phyla.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# 
-# write.table(ps.q.agg.dominant.phyla.nonbact,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-phyla-nonbact.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# 
-# write.table(ps.q.agg.dominant.families,
-#             file=file.path(rtables.directory,
-#                            paste("20241003_15_47_55",#paste(format(Sys.time(),format="%Y%m%d"),
-#                            #             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-families.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# 
-# write.table(ps.q.agg.dominant.families.nonbact,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-families-nonbact.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(ps.q.agg.dominant.genera,
-#             file=file.path(rtables.directory,
-#                            paste("20241003_15_48_15",#paste(format(Sys.time(),format="%Y%m%d"),
-#                                  # format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-genera.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(ps.q.agg.dominant.genera.nonbact,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-genera-nonbact.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(ps.q.agg.dominant.species,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-species-all.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(ps.q.agg.dominant.species.nonbact,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","dominant-species-nonbact.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+mean_sd_relab.nmr_no_groups.phyla.nonbact.fname <-file.path(community.composition.tables,
+                                                            "mean-max-min-sd-relab-nmr_no_groups-Phylum-nonbact.tsv")
+
+mean_sd_relab.nmr_no_groups.families.nonbact.fname <-file.path(community.composition.tables,
+                                                               "mean-max-min-sd-relab-nmr_no_groups-Family-nonbact.tsv")
+
+mean_sd_relab.nmr_no_groups.genera.nonbact.fname <- file.path(community.composition.tables,
+                                                              "mean-max-min-sd-relab-nmr_no_groups-Genus-nonbact.tsv")
+
+mean_sd_relab.nmr_no_groups.asv.nonbact.fname <- file.path(community.composition.tables,
+                                                           "mean-max-min-sd-relab-nmr_no_groups-OTU-nonbact.tsv")
+
+if(!file.exists(mean_sd_relab.nmr_no_groups.phyla.nonbact.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.phyla.nonbact,
+              file = mean_sd_relab.nmr_no_groups.phyla.nonbact.fname,
+              row.names = F,sep = "\t")
+}
+if(!file.exists(mean_sd_relab.nmr_no_groups.families.nonbact.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.families.nonbact,
+              file = mean_sd_relab.nmr_no_groups.families.nonbact.fname,
+              row.names = F,sep = "\t")
+}
+if(!file.exists(mean_sd_relab.nmr_no_groups.genera.nonbact.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.genera.nonbact,
+              file = mean_sd_relab.nmr_no_groups.genera.nonbact.fname,
+              row.names = F,sep = "\t")
+}
+if(!file.exists(mean_sd_relab.nmr_no_groups.asv.nonbact.fname)){
+  write.table(mean_sd_relab.nmr_no_groups.asv.nonbact,
+              file = mean_sd_relab.nmr_no_groups.asv.nonbact.fname,
+              row.names = F,sep = "\t")
+}
 
 #+ echo=FALSE
 ## 9. Check how much Bacteroidaceae are in NMR.  ####
 #'
 #' ## Check how much Bacteroidaceae are in NMR.
-bacteroidaceae.nmr<-ps.q.agg.dominant.families%>%
+bacteroidaceae.nmr<-mean_sd_relab.nmr_no_groups.families%>%
   filter(Family=="Bacteroidaceae")
-bacteroidaceae.nmr
-# write.table(bacteroidaceae.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","bacteroidaceae-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+knitr::kable(bacteroidaceae.nmr, format ="simple")
+bacteroidaceae.nmr.fname <-file.path(community.composition.tables,
+                                  paste("kraken2", 
+                                        "bacteroidaceae-nmr-table.tsv",sep="-"))
+if(! file.exists (bacteroidaceae.nmr.fname)){
+  write.table(bacteroidaceae.nmr,
+              file = bacteroidaceae.nmr.fname,
+              row.names = F,sep = "\t")
+}
 
 #+ echo=FALSE
 ### 9.1 Check the most dominant Bacteroidota families in NMR. ####
 #'
 #'### Check the most dominant Bacteroidota families in NMR.
-bacteroidota.nmr<-ps.q.agg.dominant.families%>%
+bacteroidota.nmr<-mean_sd_relab.nmr_no_groups.families%>%
   filter(Phylum=="Bacteroidota")
-bacteroidota.nmr
-# write.table(bacteroidota.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","bacteroidota-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+knitr::kable(bacteroidota.nmr, format ="simple")
+bacteroidota.nmr.fname <-file.path(community.composition.tables,
+                                     paste("kraken2", 
+                                           "bacteroidota-nmr-table.tsv",sep="-"))
+if(! file.exists (bacteroidota.nmr.fname)){
+  write.table(bacteroidota.nmr,
+              file = bacteroidota.nmr.fname,
+              row.names = F,sep = "\t")
+}
+
 
 #+ echo=FALSE
 ## 10. Check Spirochaetaceae, Spirochaetota, and Treponema in NMR. ####
 #'
 #' ## Check Spirochaetaceae, Spirochaetota, and Treponema in NMR. 
-spirochaetaceae.nmr<-ps.q.agg.dominant.families%>%
+spirochaetaceae.nmr<-mean_sd_relab.nmr_no_groups.families%>%
   filter(Family=="Spirochaetaceae")
-spirochaetaceae.nmr
+knitr::kable(spirochaetaceae.nmr, format ="simple")
 
-spirochaetota.nmr<-ps.q.agg.dominant.phyla%>%
+spirochaetota.nmr<-mean_sd_relab.nmr_no_groups.phyla%>%
   filter(Phylum=="Spirochaetota")
-spirochaetota.nmr
-# write.table(spirochaetaceae.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2", "spirochaetaceae-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(spirochaetota.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2", "spirochaetota-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+knitr::kable(spirochaetota.nmr, format ="simple")
 
-treponema.nmr<-ps.q.agg.dominant.genera%>%
-  filter(Genus=="Treponema")
-treponema.nmr
+spirochaetaceae.nmr.fname <- file.path(community.composition.tables,
+                                       paste("kraken2", 
+                                             "spirochaetaceae-nmr-table.tsv",sep="-") )
+spirochaetota.nmr.fname <- file.path(community.composition.tables,
+                                       paste("kraken2", 
+                                             "spirochaetota-nmr-table.tsv",sep="-") )
 
-treponema.nmr.names<-ps.q.agg.dominant.species%>%
-  filter(Genus=="Treponema")
-treponema.nmr.names
-# write.table(treponema.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","treponema-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-# write.table(treponema.nmr.names,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","treponema-nmr-names.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+if(!file.exists(spirochaetaceae.nmr.fname)){
+  write.table(spirochaetaceae.nmr,
+              file = spirochaetaceae.nmr.fname,
+              row.names = F,sep = "\t")
+}
+if(!file.exists(spirochaetota.nmr.fname)){
+  write.table(spirochaetota.nmr,
+              file = spirochaetota.nmr.fname,
+              row.names = F,sep = "\t")
+}
 
-#+ echo=FALSE
-### 10.1 Check the number of Species in Treponema from NMR. ####
-#' 
-#' ### Check the number of Species in Treponema from NMR.
-ps.q.agg%>%
+#' Check the number of Species in Treponema from NMR.
+mean_sd_relab.nmr_no_groups.asv%>%
   ungroup()%>%
   filter(Genus=="Treponema",class=="NMR")%>%
   distinct(OTU)%>%
-  tally
+  tally%>%
+  knitr::kable(format = "simple")
+
+
+treponema.nmr<-mean_sd_relab.nmr_no_groups.genera%>%
+  filter(Genus=="Treponema")
+knitr::kable(treponema.nmr, format ="simple")
+
+treponema.nmr.names<-mean_sd_relab.nmr_no_groups.asv%>%
+  filter(Genus=="Treponema")
+knitr::kable(treponema.nmr.names, format ="simple")
+
+treponema.nmr.fname <- file.path(community.composition.tables,
+                                 paste("kraken2", 
+                                       "treponema-nmr-table.tsv",sep="-") )
+
+treponema.nmr.names.fname <- file.path(community.composition.tables,
+                                       paste("kraken2", 
+                                             "treponema-nmr-names.tsv",sep="-") )
+if(!file.exists(treponema.nmr.fname)){
+  write.table(treponema.nmr,
+              file = treponema.nmr.fname,
+              row.names = F,sep = "\t")
+}
+if(!file.exists(treponema.nmr.names.fname)){
+  write.table(treponema.nmr.names,
+              file = treponema.nmr.names.fname,
+              row.names = F,sep = "\t")
+}
 
 #+ echo=FALSE
-## 11. Check Mogibacteriaceae (renamed to Anaerovoracaceae). ####
-#' 
-#' ## Check Mogibacteriaceae (renamed to Anaerovoracaceae).
-mogibacteriaceae_anaerovoracaceae.all<-ps.q.agg.dominant.families%>%
-  filter(Family=="Anaerovoracaceae")
-mogibacteriaceae_anaerovoracaceae.all
-# write.table(mogibacteriaceae_anaerovoracaceae.all,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                 "kraken2", "mogibacteriaceae_anaerovoracaceae-all-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
-
-#+ echo=FALSE
-## 12. Analyse sulfur-metabolising bacteria in NMR. ####
+## 11. Analyse sulfur-metabolising bacteria in NMR. ####
 #'
 #' ## Analyse sulfur-metabolising bacteria in NMR. 
 #' We don't know where the "sulf" pattern is (Phylum, Order, Genus, or anywhere 
@@ -511,25 +525,27 @@ mogibacteriaceae_anaerovoracaceae.all
 #' https://stackoverflow.com/questions/47941680/grepl-across-multiple-specified-columns
 all.ranks<-c("Kingdom", "Phylum", "Class", "Order", "Family","Genus","Species")
 sulfur.bact.nmr<-
-  ps.q.agg[!!rowSums(sapply(ps.q.agg.relab[,all.ranks], grepl, 
+  ps.q.agg.species[!!rowSums(sapply(ps.q.agg.species[,all.ranks], grepl, 
                             pattern = "sulf|thio") ),]%>%
-  distinct(OTU,.keep_all = T)%>%
+  distinct(Species,.keep_all = T)%>%
   select(all_of(all.ranks))%>%
-  inner_join(ps.q.agg.dominant.species)
-head(sulfur.bact.nmr)
-# write.table(sulfur.bact.nmr,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","sulfur.bact.nmr-nmr-table.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+  inner_join(mean_sd_relab.nmr_no_groups.asv)
+head(sulfur.bact.nmr)%>%
+  knitr::kable(format = "simple")
+sulfur.bact.nmr.fname <- file.path(community.composition.tables,
+                                   paste("kraken2", 
+                                         "sulfur.bact.nmr-nmr-table.tsv",sep="-") )
+if(!file.exists(sulfur.bact.nmr.fname)){
+  write.table(sulfur.bact.nmr,
+              file = sulfur.bact.nmr.fname,
+              row.names = F,sep = "\t")
+}
 
 #+ echo=FALSE
-### 12.2 Plot sulfur metabolising bacteria. ####
+### 11.2 Plot sulfur metabolising bacteria. ####
 #'
 #' ### Plot sulfur metabolising bacteria.
-# ps.q.agg.relab<-ps.q.agg.relab%>%ungroup()
-sulfur.bact.plot<-ps.q.agg.relab%>%
+sulfur.bact.plot <- ps.q.rel.agg.asv%>%
   filter(Species %in% sulfur.bact.nmr$Species)%>%
   mutate(Species = factor(Species, levels = sulfur.bact.nmr$Species),
          Species = gsub("_"," ",Species),
@@ -581,29 +597,18 @@ print(sulfur.bact.plot +
               panel.grid.minor = element_blank(),
               panel.grid.major = element_blank())+
         ggtitle(paste0("Relative abundance of sulfur-utilizing bacteria in different naked mole-rat age groups")))
-# for (image.format in c("png","tiff")){
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "sulfur-bacteria-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=sulfur.bact.plot,
-#          width=11, height=8,units="in",
-#          dpi=300,device = image.format)
-# }
+for (image.format in c("png","tiff")){
+  ggsave(filename = paste0("sulfur-bacteria-nmr.", image.format),
+         path = community.composition.figures,
+         plot=sulfur.bact.plot,
+         width=11, height=8,units="in",
+         dpi=300,device = image.format)
+}
 
-treponema.sp.nmr<-ps.q.agg.relab%>%
-  filter(Genus=="Treponema",class=="NMR")%>%
-  group_by(Species)%>%
-  select(Species,MeanRelativeAbundance)%>%
-  arrange(-MeanRelativeAbundance)%>%
-  ungroup()%>%
-  distinct()%>%
-  pull(Species)
-
-treponema.plot<-ps.q.agg.relab%>%
-  filter(Species %in% treponema.sp.nmr)%>%
-  mutate(Species = factor(Species, levels = treponema.sp.nmr),
+treponema.plot<-ps.q.rel.agg.asv%>%
+  filter(Genus=="Treponema")%>%
+  arrange(Species)%>%
+  mutate(Species = factor(Species, levels = unique(Species)),
          Species = gsub("_"," ",Species),
          Species = paste0("<i>",Species,"</i>")
   )%>%
@@ -652,19 +657,16 @@ print(treponema.plot+
               panel.grid.minor = element_blank(),
               panel.grid.major = element_blank())+
         ggtitle(paste0("Relative abundance of Treponemas in naked mole-rats")))
-# for (image.format in c("png","tiff")){
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "treponema.sp-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=treponema.plot,
-#          width=11, height=8,units="in",
-#          dpi=300,device = image.format)
-# }
+for (image.format in c("png","tiff")){
+  ggsave(filename = paste0("treponema.sp-nmr.", image.format),
+         path = community.composition.figures,
+         plot=treponema.plot,
+         width=11, height=8,units="in",
+         dpi=300,device = image.format)
+}
 
 #+ echo=FALSE
-## 13. Groups 1, 2, and 3 (**Supplementary figure**). ####
+## 12. Groups 1, 2, and 3 (**Supplementary figure**). ####
 #'
 #' ## Groups 1, 2, and 3 (**Supplementary figure**).
 group1.genera<-c("Faecalibacterium",
@@ -711,7 +713,7 @@ group3.families<-c("Christensenellaceae")
 #' healthy aging in humans):
 group1.genera
 group1.genera.plot<-ggplot_species(group1.genera,
-                                   ps.q.agg.genus.relab,
+                                   ps.q.rel.agg.asv,
                                    tax.rank="Genus",
                                    sample.order=sample.levels,
                                    group.names = pretty.level.names,
@@ -723,12 +725,12 @@ print(group1.genera.plot+
         theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 1 members"))) # 4 plots
 
-group1.species%in%ps.q.agg.relab$Species # no need to plot
+group1.species%in%ps.q.rel.agg.asv$Species # no need to plot
 
 #' Abundances of group 2 genera (increased with age):
 group2.increased.genera
 group2.increased.genera.plot<-ggplot_species(taxa.to.plot =group2.increased.genera,
-                                             tax.df =ps.q.agg.genus.relab,
+                                             tax.df =ps.q.rel.agg.asv,
                                              tax.rank="Genus",
                                              sample.order=sample.levels,
                                              group.names = pretty.level.names,
@@ -744,7 +746,7 @@ print(group2.increased.genera.plot+
 #' Abundances of group 2 genera (associated with unhealthy aging):
 group2.unhealthy.genera
 group2.unhealthy.genera.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.genera,
-                                              tax.df=ps.q.agg.genus.relab,
+                                              tax.df=ps.q.rel.agg.asv,
                                               tax.rank="Genus",
                                               sample.order=sample.levels,
                                               group.names = pretty.level.names,
@@ -760,7 +762,7 @@ print(group2.unhealthy.genera.plot+
 #' Abundances of group 2 families (associated with unhealthy aging):
 group2.unhealthy.families
 group2.unhealthy.families.plot<-ggplot_species(taxa.to.plot=group2.unhealthy.families,
-                                              tax.df=ps.q.agg.family.relab,
+                                              tax.df=ps.q.rel.agg.asv,
                                               tax.rank="Family",
                                               sample.order=sample.levels,
                                               group.names = pretty.level.names,
@@ -776,7 +778,7 @@ print(group2.unhealthy.families.plot+
 #' Abundances of group 2 species (associated with unhealthy aging):
 group2.unhealthy.species
 group2.unhealthy.species.plot<-ggplot_species(taxa.to.plot =group2.unhealthy.species,
-                                             tax.df=ps.q.agg.relab,
+                                             tax.df = ps.q.rel.agg.asv,
                                               tax.rank="Species",
                                              sample.order=sample.levels,
                                              group.names = pretty.level.names,
@@ -794,7 +796,7 @@ print(group2.unhealthy.species.plot+
 #' healthy aging):
 group3.genera
 group3.genera.plot<-ggplot_species(taxa.to.plot =group3.genera,
-                                    tax.df = ps.q.agg.genus.relab,
+                                    tax.df = ps.q.rel.agg.asv,
                                     tax.rank = "Genus",
                                     sample.order=sample.levels,
                                     group.names = pretty.level.names,
@@ -809,7 +811,7 @@ print(group3.genera.plot+
 #' Abundances of group 3 families (increased with age and associated 
 #' with healthy aging):
 group3.families.plot<-ggplot_species(taxa.to.plot = group3.families,
-                                      tax.df = ps.q.agg.family.relab,
+                                      tax.df = ps.q.rel.agg.asv,
                                     tax.rank = "Family",
                                     sample.order=sample.levels,
                                     group.names = pretty.level.names,
@@ -821,190 +823,129 @@ print(group3.families.plot+
         theme(axis.text.x = element_text(size=6, angle=45, hjust=1))+
         ggtitle(paste0("Relative abundance of Group 3 members")))
 
-# for (image.format in c("png","tiff")){
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group1.genera-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=group1.genera.plot,
-#          width=10, height=7,units="in",
-#          dpi=300,device = image.format) # 4 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group2.increased.genera-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=group2.increased.genera.plot,
-#          width=10, height=7,units="in",
-#          dpi=300,device = image.format) # 4 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group2.unhealthy.genera-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=group2.unhealthy.genera.plot,
-#          width=10, height=7,units="in",
-#          dpi=300,device = image.format) # 7 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group2.unhealthy.families-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=group2.unhealthy.families.plot,
-#          width=10, height=5,units="in",
-#          dpi=300,device = image.format)    # 2 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group2.unhealthy.species-nmr",
-#                       sep = "-"),".",image.format),
-#          plot=group2.unhealthy.species.plot,
-#          width=10, height=8,units="in",
-#          dpi=300,device = image.format)    # 6 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group3.genera-nmr",
-#                       sep = "-"),".",image.format),
-#          plot= group3.genera.plot ,
-#          width=10, height=8,units="in",
-#          dpi=300,device = image.format)    # 5 plots
-#   ggsave(paste0("./images/barplots/",
-#                 paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                             format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                       "group3.families-nmr",
-#                       sep = "-"),".",image.format),
-#          plot= group3.families.plot ,
-#          width=7, height=5,units="in",
-#          dpi=300,device = image.format)    # 1 plot
-#   
-# }
+for (image.format in c("png","tiff")){
+  ggsave(filename = paste0("group1.genera-nmr.", image.format),
+         path = community.composition.figures,
+         plot=group1.genera.plot,
+         width=10, height=7,units="in",
+         dpi=300,device = image.format) # 4 plots
+  ggsave(filename = paste0("group2.increased.genera-nmr.",image.format),
+         path = community.composition.figures,
+         plot=group2.increased.genera.plot,
+         width=10, height=7,units="in",
+         dpi=300,device = image.format) # 4 plots
+  ggsave(filename = paste0("group2.unhealthy.genera-nmr.",image.format),
+         path = community.composition.figures,
+         plot=group2.unhealthy.genera.plot,
+         width=10, height=7,units="in",
+         dpi=300,device = image.format) # 7 plots
+  ggsave(filename = paste0("group2.unhealthy.families-nmr.",image.format),
+         path = community.composition.figures,
+         plot = group2.unhealthy.families.plot,
+         width=10, height=5,units="in",
+         dpi=300,device = image.format)    # 2 plots
+  ggsave(filename = paste0("group2.unhealthy.species-nmr.",image.format),
+         path = community.composition.figures,
+         plot = group2.unhealthy.species.plot,
+         width=10, height=8,units="in",
+         dpi=300,device = image.format)    # 6 plots
+  ggsave(paste0("group3.genera-nmr.", image.format), 
+         path = community.composition.figures,
+         plot= group3.genera.plot ,
+         width=10, height=8,units="in",
+         dpi=300,device = image.format)    # 5 plots
+  ggsave(paste0("group3.families-nmr.", image.format),
+         path = community.composition.figures,
+         plot = group3.families.plot ,
+         width=7, height=5,units="in",
+         dpi=300,device = image.format)    # 1 plot
+
+}
 
 #+ echo=FALSE
-## 14. Analyse each kingdom in detail. ####
+## 13. Analyse each kingdom in detail. ####
 #'
 #' ## Analyse each kingdom in detail. 
 #'
 #' Number of bacterial species
-ps.q.agg.dominant.species%>%
+mean_sd_relab.nmr_no_groups.asv%>%
   filter(Kingdom=="Bacteria")%>%
   nrow
-#' Save the table of bacterial abundances
-ps.q.agg.bacteria<-ps.q.agg.dominant.species%>%
-  ungroup%>%
-  filter(Kingdom=="Bacteria")
-# write.table(ps.q.agg.bacteria,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","bacteria.tsv",sep="-")),
-#             row.names = F,sep = "\t")
 
 #+ echo=FALSE
-### 14.1 Eukaryotes ####
+### 13.1 Eukaryotes ####
 #'
 #' ### Eukaryotes
-#' How many eukaryotes do we have
-ps.q.agg.dominant.species.nonbact%>%
+#' How many eukaryote species do we have
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   distinct(Species)%>%
-  tally
+  tally()
 #' Total abundance of eukaryotes in classified data
-ps.q.agg.relab%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   ungroup%>%
   filter(Kingdom=="Eukaryota")%>%
-  reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
-  distinct
+  distinct() %>%
+  knitr::kable(format = "simple")
+
 #' Eukaryotic phyla
-ps.q.agg.dominant.species.nonbact%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   filter(Kingdom=="Eukaryota")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
-  tally
+  tally()%>%
+  knitr::kable(format = "simple")
 #' Eukaryotic species that aren't Streptophyta
-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Eukaryota",Phylum!="Streptophyta")
-#' Save the table of eukaryotic abundances
-ps.q.agg.eukaryotes<-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Eukaryota")
-# write.table(ps.q.agg.eukaryotes,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","eukaryotes.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
+  filter(Kingdom=="Eukaryota",Phylum!="Streptophyta")%>%
+  knitr::kable(format = "simple")
 
 #+ echo=FALSE
-### 14.2 Archaea ####
+### 13.2 Archaea ####
 #'
-#' ### 14.2 Archaea
+#' ### 13.2 Archaea
 #' How many archaea do we have 
-ps.q.agg.dominant.species%>%
+mean_sd_relab.nmr_no_groups.asv%>%
   filter(Kingdom=="Archaea")%>%
   distinct(Species)%>%
-  tally
+  tally()
 #' Total abundance of archaea in classified data
-ps.q.agg.relab%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   ungroup%>%
   filter(Kingdom=="Archaea")%>%
-  reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
-  distinct
+  distinct()%>%
+  knitr::kable(format = "simple")
 #' Archaea phyla
-ps.q.agg.dominant.species.nonbact%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   filter(Kingdom=="Archaea")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
-  tally
-#' Archaea species 
-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Archaea")
-
-#' Save the table of archaea abundances
-ps.q.agg.archaea<-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Archaea")
-# write.table(ps.q.agg.archaea,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","archaea.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+  tally()%>%
+  knitr::kable(format = "simple")
 
 #+ echo=FALSE
-### 14.3 Viruses ####
+### 13.3 Viruses ####
 #'
-#' ### 14.3 Viruses
+#' ### 13.3 Viruses
 #' How many viruses do we have
-ps.q.agg.dominant.species.nonbact%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   filter(Kingdom=="Viruses")%>%
   distinct(Species)%>%
-  tally
+  tally()
 #' Total abundance of viruses in classified data
-ps.q.agg.relab%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   ungroup%>%
   filter(Kingdom=="Viruses")%>%
-  reframe(TotalKingdom=sum(Abundance)/TotalClass*100)%>%
-  distinct
+  distinct()%>%
+  knitr::kable(format = "simple")
 #' Viral phyla 
-ps.q.agg.dominant.species.nonbact%>%
+mean_sd_relab.nmr_no_groups.asv.nonbact%>%
   filter(Kingdom=="Viruses")%>%
   group_by(Phylum)%>%
   distinct(Species,.keep_all = T)%>%
-  tally
-#' Viral species
-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Viruses")%>%
-  group_by(Phylum)%>%
-  distinct(Species,.keep_all = T)
-#' Save the table of viral abundances
-ps.q.agg.viruses<-ps.q.agg.dominant.species.nonbact%>%
-  filter(Kingdom=="Viruses")
-# write.table(ps.q.agg.viruses,
-#             file=file.path(rtables.directory,
-#                            paste(paste(format(Sys.time(),format="%Y%m%d"),
-#                                        format(Sys.time(),format = "%H_%M_%S"),sep = "_"),
-#                                  "kraken2","viruses.tsv",sep="-")),
-#             row.names = F,sep = "\t")
+  tally()%>%
+  knitr::kable(format = "simple")
+
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
