@@ -494,5 +494,5 @@ if (!file.exists(blastn.coverm.megahit.fname.rds) & !file.exists(blastn.coverm.m
 }
 
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
