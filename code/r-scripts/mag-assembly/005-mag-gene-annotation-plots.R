@@ -24,6 +24,7 @@
 # install.packages(c("tidyverse"))
 library(tidyverse)
 library(gplots)
+library(stringr)
 #+ echo=FALSE
 ## 2. Import datasets. ####
 #'
@@ -85,8 +86,10 @@ gene.annotation.tool.list <- list("dbCAN" = unique(dbcan.df$locus_tag_cluster),
                                   "all" = unique(gene.annotation.df$locus_tag_cluster))
 gene.annotation.venn <- venn(gene.annotation.tool.list, show.plot = FALSE)
 plot(gene.annotation.venn)
-attr(gene.annotation.venn, "intersections")
-gene.annotation.venn
+attr(gene.annotation.venn, "intersections")%>% 
+  summary()
+gene.annotation.venn %>%
+  head()
 #' Get all sets (both shared and unique to each tool)
 uniq.gene.counts <- attr(gene.annotation.venn, "intersections")
 #' Convert list into dataframe
@@ -106,7 +109,7 @@ head(uniq.gene.counts)%>%
 ## 4. The barplot of all genes for each annotation (4 bars). ####
 #'
 #' ## The barplot of all genes for each annotation (4 bars).
-uniq.gene.counts.bp<-uniq.gene.counts%>%
+uniq.gene.counts.bp <- uniq.gene.counts%>%
   mutate(annotation_type=factor(annotation_type,
                                 levels=sort(uniq.gene.counts$annotation_type)))%>%
   ggplot(aes(x=annotation_type,y=n,fill=annotation_type))+
@@ -118,7 +121,12 @@ uniq.gene.counts.bp<-uniq.gene.counts%>%
        fill="Annotation type")+
   theme_bw()+
   coord_cartesian(ylim = c(0,max(uniq.gene.counts$n)+200000),
-                  expand = F)+
+                  expand = F)
+#' Save the plot as rds object
+saveRDS(uniq.gene.counts.bp, file = file.path(mag.manuscript.figures, 
+                                                  "uniq.gene.counts.bp.rds"))
+
+uniq.gene.counts.bp <- uniq.gene.counts.bp +
   theme(axis.text.x = element_blank(),
         axis.text.y = element_text(size=20), # size of y axis ticks
         axis.title = element_text(size = 20), # size of axis names
@@ -150,90 +158,74 @@ gc()
 ## 5. Most abundant genes in total with and without filtering by prevalence. ####
 #'
 #' ## Most abundant genes in total with and without filtering by prevalence.
-top.abundant.genes <- gene.annotation.df %>%
-  group_by(sample_id)%>%
-  count(locus_tag_cluster,name = "n_locus_tags")%>% # we're counting locus_tag_cluster, which are locus_tags
-  ungroup()%>%
-  arrange(desc(n_locus_tags))
+#' Find non-redundant genes (locus_tag_clusters) in each sample.
+non_red_genes.by_sample <- gene.annotation.df %>%
+  distinct(sample_id, locus_tag_cluster)
+
 #' Group by KOs:
-top.ko <- top.abundant.genes%>%
+non_red_genes.by_sample.ko <- non_red_genes.by_sample %>%
   left_join(kofamscan.df, by = "locus_tag_cluster")%>%
-  mutate(ko_definition = ifelse(is.na(ko),"KO unavailable",ko_definition))%>%
   group_by(sample_id, ko)%>%
-  summarise(n_locus_tags = sum(n_locus_tags))%>%
-  ungroup() %>%
-  left_join(kofamscan.df[,c("ko", "ko_definition")]%>%distinct(), by = "ko")%>%
-  arrange(desc(n_locus_tags))
+  count(ko, name = "n_locus_tag_clusters", sort = TRUE) %>% # when you count, you only get sample_id, ko, n_locus_tag_cluster
+  ungroup()%>%
+  left_join(kofamscan.df[,c("ko", "ko_definition")]%>%distinct(), by = "ko")%>% # add KO definitions
+  arrange(desc(n_locus_tag_clusters))%>%
+  mutate(ko = ifelse(is.na(ko),"KO unavailable", ko),
+         ko_definition = ifelse(is.na(ko_definition),"KO unavailable",ko_definition)) # clean NAs
 
 #' Group by CAZymes:
-top.caz_subclasses <- top.abundant.genes %>%
+non_red_genes.by_sample.caz_subclass <- non_red_genes.by_sample %>%
   left_join(dbcan.df[,c("locus_tag_cluster","caz_with_aa_coord",
                         "caz_subclass")]%>%distinct(),
-            relationship = "many-to-many")%>%
-  group_by(sample_id,caz_subclass)%>%
-  summarise(n_locus_tags = sum(n_locus_tags))%>%
+            relationship = "many-to-many", 
+            by = "locus_tag_cluster")%>%
+  group_by(sample_id, caz_subclass)%>%
+  count(caz_subclass, name = "n_locus_tag_clusters", sort = TRUE)%>%
   ungroup()%>%
   left_join(dbcan.df[,c("caz_subclass", "caz_class")]%>%distinct())%>%
-  arrange(desc(n_locus_tags))
-
-#' Count prevalence of locus_tag_clusters(the number of samples it was observed in):
-top.abundant.genes.prevalence <- top.abundant.genes %>%
-  distinct(sample_id, locus_tag_cluster)%>%
-  count(locus_tag_cluster, name = "prevalence", sort = TRUE)
-
-#' Same for KOs:
-ko.prevalence <- top.abundant.genes %>%
-  left_join(kofamscan.df, by = "locus_tag_cluster")%>%
-  mutate(ko_definition = ifelse(is.na(ko),"KO unavailable",ko_definition))%>%
-  distinct(sample_id, ko)%>%
-  count(ko, name = "prevalence", sort = TRUE)
-
-#' Same for CAZymes:
-caz_subclass.prevalence <- top.abundant.genes %>%
-  left_join(dbcan.df[,c("locus_tag_cluster","caz_with_aa_coord",
-                        "caz_subclass")]%>%distinct(),
-            relationship = "many-to-many")%>%
-  distinct(sample_id, caz_subclass)%>%
-  count(caz_subclass, name = "prevalence", sort = TRUE)
-
-head(top.abundant.genes)%>%
+  arrange(desc(n_locus_tag_clusters))
+#' Showing the first few rows:
+head(non_red_genes.by_sample.ko)%>%
   knitr::kable(format = "simple")%>%
   print()
-head(top.ko)%>%
+head(non_red_genes.by_sample.caz_subclass)%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+#' Count prevalence of KOs (the number of samples it was observed in):
+ko.prevalence <- non_red_genes.by_sample.ko %>%
+  distinct(sample_id, ko )%>%
+  count(ko, name = "prevalence", sort = TRUE)
+#' Count prevalence of CAZyme subclasses (the number of samples it was observed in):
+caz_subclass.prevalence <- non_red_genes.by_sample.caz_subclass %>%
+  filter(!is.na(caz_subclass))%>%
+  distinct(sample_id, caz_subclass)%>%
+  count(caz_subclass, name = "prevalence", sort = TRUE)
+#' Showing the first few rows:
+head(ko.prevalence)%>%
   knitr::kable(format = "simple")%>%
   print()
 head(caz_subclass.prevalence)%>%
   knitr::kable(format = "simple")%>%
   print()
-  
 
-#' Initial plot shows that top genes are short and don't have KO annotation
-#' (but prevalence is low too).
-top15.ko.initial <- top.ko %>%
-  filter(!is.na(ko))%>%
-  arrange(desc(n_locus_tags))%>%
-  slice_head(n=1000) %>% # heuristic because we expect 15 most abundant genes to be within 1000 rows
+#+ echo=FALSE
+### 5.1 Plot KOs with the highest number of non-redundant genes. ####
+#'
+#' ### Plot KOs with the highest number of non-redundant genes.
+top.ko.initial.boxplot <- non_red_genes.by_sample.ko %>%
+  filter(!is.na(ko), ko!= "KO unavailable")%>% # we have to remove NAs because they'd skew the plot
   group_by(ko)%>%
-  mutate(ko_row_num = row_number()) %>%
-  ungroup()%>%
-  filter(ko_row_num == 1 )%>%
-  select(-ko_row_num, -sample_id)%>%
-  slice_head(n=15)
-top15.ko.initial%>%
-  knitr::kable(format = "simple")%>%
-  print()
-
-
-top.ko.initial.boxplot <- top.ko %>%
-  filter(ko %in% top15.ko.initial$ko)%>%
-  # mutate(locus_tag_cluster = factor(locus_tag_cluster,
-  #                                   levels = unique(locus_tag_cluster)))%>%
-  mutate(ko = factor(ko, levels = unique(ko)),
+  summarise(median_n_locus_tag_clusters = median(n_locus_tag_clusters), # calculate median and mean
+            mean_n_locus_tag_clusters = mean(n_locus_tag_clusters))%>%
+  arrange(desc(median_n_locus_tag_clusters))%>%
+  slice_head(n = 15)%>% # get the first 15
+  left_join(non_red_genes.by_sample.ko)%>% # add the mean and median to the full dataset (keep only rows of 15 KOs)
+  mutate(ko = factor(ko, levels = unique(ko)),  # sort the names for plot
          ko_definition = factor(ko_definition, levels = unique(ko_definition)))%>%
-  # ggplot(aes(x=locus_tag_cluster,y=tpm,fill=ko_definition))+
-  ggplot(aes(x = ko, y = n_locus_tags, fill = ko_definition))+
+  ggplot(aes(x = ko, y = n_locus_tag_clusters, fill = ko_definition))+
   geom_boxplot()+
-  geom_jitter()+
+  geom_jitter() +
   # geom_text(subset(top.ko,
   #                  locus_tag_cluster%in%top15.ko.initial$locus_tag_cluster) %>%
   #             distinct(locus_tag_cluster,.keep_all = TRUE),
@@ -245,12 +237,15 @@ top.ko.initial.boxplot <- top.ko %>%
   #           vjust = -0.3, nudge_y = -0.5,
   #           size=6)+ # add counts of genes
   theme_bw()+
-  labs(x="Gene ID",
+  scale_fill_viridis_d(option = "C",
+                       alpha = 0.5)+
+  labs(x="KO ID",
        # y="Median TPM",
-       y="Number of identified sequences per sample",
+       y="Number of unique genes per sample",
        fill="KO annotation",
-       title = "Initial plot shows low prevalence of abundant genes")+
-  theme(plot.margin=unit(c(1,1,1,1.5), 'cm'),
+       title = "Top 15 KOs by median number of unique gene sequences",
+       subtitle = "Only non-redundant sequences were used")+
+  theme(#plot.margin=unit(c(1,1,1,1.5), 'cm'),
         axis.text.x = element_text(size=10,angle = 45,hjust=1),
         axis.text.y = element_text(size=10), # size of y axis ticks
         axis.title = element_text(size = 10), # size of axis names
@@ -270,31 +265,28 @@ for(image.format in image.formats){
          path = mag.figures,
          plot=top.ko.initial.boxplot,
          width=10, height=5,units="in",
-         units = "px",dpi=300,device = image.format)
+         dpi=300,device = image.format)
 }
 
 #+ echo=FALSE
-### 5.1 Keep genes with prevalence >2 samples out of 11. ####
+#### 5.1.1 Keep KOs with prevalence >2 samples out of 11. ####
 #'
-#' ### Keep genes with prevalence >2 samples out of 11.
-top15.ko.filtered <- ko.prevalence %>%
+#' #### Keep KOs with prevalence >2 samples out of 11.
+top.ko.filtered.boxplot <- ko.prevalence %>%
   filter(prevalence > 2)%>%
-  right_join(top.ko, by =join_by(ko))%>%
+  left_join(non_red_genes.by_sample.ko, by =join_by(ko))%>%
   filter(!is.na(ko), ko_definition != "KO unavailable")%>%
-  arrange(desc(n_locus_tags))%>%
-  distinct(ko, .keep_all = T)%>%
-  slice_head(n=15)
-
-top.ko.filtered.boxplot <- top.ko %>%
-  filter(ko %in% top15.ko.filtered$ko)%>%
-  mutate(ko_definition = ifelse(is.na(ko),"KO unavailable",ko_definition)
-                       )%>%
-  mutate(ko = factor(ko, levels = unique(ko)),
-                    ko_definition = factor(ko_definition, levels = unique(ko_definition)))%>%
-  # ggplot(aes(x=locus_tag_cluster,y=tpm,fill=ko_definition))+
-  ggplot(aes(x = ko,y = n_locus_tags,fill=ko_definition))+
-  geom_boxplot(outlier.size = NULL)+
-  geom_jitter()+
+  group_by(ko)%>%
+  summarise(median_n_locus_tag_clusters = median(n_locus_tag_clusters), # calculate median and mean
+            mean_n_locus_tag_clusters = mean(n_locus_tag_clusters))%>%
+  arrange(desc(median_n_locus_tag_clusters))%>%
+  slice_head(n = 15)%>% # get the first 15
+  left_join(non_red_genes.by_sample.ko)%>% # add the mean and median to the full dataset (keep only rows of 15 KOs)
+  mutate(ko = factor(ko, levels = unique(ko)),  # sort the names for plot
+         ko_definition = factor(ko_definition, levels = unique(ko_definition)))%>%
+  ggplot(aes(x = ko, y = n_locus_tag_clusters, fill = ko_definition))+
+  geom_boxplot()+
+  geom_jitter() +
   # geom_text(subset(top.ko,
   #                  locus_tag_cluster%in%top15.genes.filtered$locus_tag_cluster)%>%
   #             distinct(locus_tag_cluster,.keep_all = TRUE),
@@ -308,14 +300,14 @@ top.ko.filtered.boxplot <- top.ko %>%
   theme_bw()+
   scale_fill_viridis_d(option = "C",
                        alpha = 0.5)+
-  labs(x="Gene ID",
+  labs(x="KO ID",
        # y="Median TPM",
-       y="Number of identified sequences per sample",
-       # title = "Only prevalent genes (>2/11 samples) are shown here",
-       fill="KO annotation"
-       )+
+       y="Number of unique genes per sample",
+       title = "Top 15 KOs by median number of unique gene sequences",
+       fill="KO annotation",
+       subtitle = "Only prevalent KOs found in at least 2 out of 11 samples are shown here")+
   theme(
-    plot.margin=unit(c(0.2,0.2,0.2,0.5), 'cm'),
+    # plot.margin=unit(c(0.2,0.2,0.2,0.5), 'cm'),
     axis.text.x = element_text(size=10,angle = 45,hjust=1),
     axis.text.y = element_text(size=10), # size of y axis ticks
     axis.title = element_text(size = 10), # size of axis names
@@ -331,7 +323,7 @@ top.ko.filtered.boxplot <- top.ko %>%
 print(top.ko.filtered.boxplot)
 
 for(image.format in image.formats){
-  ggsave(filename = paste("top-genes-filtered-prevalence", image.format,sep = "."),
+  ggsave(filename = paste("top-ko-filtered-prevalence", image.format,sep = "."),
          path = mag.figures,
          plot=top.ko.filtered.boxplot,
          width=10, height=5,units="in",
@@ -340,56 +332,28 @@ for(image.format in image.formats){
 
 
 #+ echo=FALSE
-## 6. Most abundant CAZyme subclasses. ####
+### 5.2. Plot CAZyme subclasses with the highest number of non-redundant genes. ####
 #'
-#' ## Most abundant CAZyme subclasses.
-#' Get the number of samples where a cazyme subclass was found
-top15.caz_subclasses <- top.caz_subclasses%>%
-  group_by(caz_subclass)%>%
-  mutate(caz_subclass_row_num = row_number()) %>%
-  ungroup()%>%
-  filter(caz_subclass_row_num == 1 )%>%
-  select(-caz_subclass_row_num)%>%
-  filter(!is.na(caz_subclass))%>%
-  slice_head(n=15)
-
-# top.caz_subclasses<-gene.annotation.df%>%
-#   select(sample,caz_subclass,caz_class,locus_tag_cluster,tpm)%>%
-#   filter(!is.na(caz_subclass))%>%
-#   group_by(caz_subclass)%>%
-#   mutate(n_samples=n_distinct(sample))%>%
-#   add_tally(name="prevalence")%>% # prevalence is the number of samples where a subclass was found
-#   mutate(median_tpm=median(tpm))%>% # median TPM for each gene
-#   ungroup%>%
-#   distinct(sample,locus_tag_cluster,.keep_all = T)%>%
-#   arrange(desc(median_tpm))
-#   
-# top.caz_subclasses<-top.caz_subclasses%>%
-#   left_join(unique(cazymes.blast.df[,c("locus_tag_cluster",
-#                                        "Kingdom","Species")])) # add BLAST annotation
-
-# top15.caz_subclasses<-top.caz_subclasses%>%
-#   select(caz_subclass,median_tpm,caz_class)%>%
-#   distinct(caz_subclass,median_tpm,.keep_all = TRUE)%>%
-#   arrange(desc(median_tpm))%>%
-#   slice_head(n=15)
-
-top.cazyme.plot <- top.caz_subclasses%>%
-  filter(caz_subclass%in%top15.caz_subclasses$caz_subclass)%>%
-  group_by(sample_id,caz_subclass)%>%
-  summarise(n_locus_tags = sum(n_locus_tags))%>%
-  ungroup()%>%
-  left_join(top.caz_subclasses[,c("caz_subclass", "caz_class")]%>%distinct())%>%
-  mutate(caz_subclass=factor(caz_subclass,levels=unique(top15.caz_subclasses$caz_subclass)),
-                       caz_class=factor(caz_class,levels=unique(top15.caz_subclasses$caz_class)))%>%
-  # ggplot(aes(x=caz_subclass,y=tpm,fill=caz_class))+
-  ggplot(aes(x=caz_subclass,y=n_locus_tags,fill=caz_class))+
+#' ### Plot CAZyme subclasses with the highest number of non-redundant genes.
+top.cazyme.initial.boxplot <-  non_red_genes.by_sample.caz_subclass %>%
+  filter(!is.na(caz_subclass ))%>% # we have to remove NAs because they'd skew the plot
+  group_by(caz_subclass )%>%
+  summarise(median_n_locus_tag_clusters = median(n_locus_tag_clusters), # calculate median and mean
+            mean_n_locus_tag_clusters = mean(n_locus_tag_clusters))%>%
+  arrange(desc(median_n_locus_tag_clusters))%>%
+  slice_head(n = 15)%>% # get the first 15
+  left_join(non_red_genes.by_sample.caz_subclass)%>% # add the mean and median to the full dataset (keep only rows of 15 KOs)
+  mutate(caz_subclass  = factor(caz_subclass , levels = unique(caz_subclass )),  # sort the names for plot
+         caz_class = factor(caz_class, levels = unique(caz_class)))%>%
+  ggplot(aes(x = caz_subclass , y = n_locus_tag_clusters, fill = caz_class))+
   geom_boxplot()+
   geom_jitter(cex = 0.8)+
   labs(x="CAZyme subclass",
        # y="Median TPM",
-       y="Number of identified sequences per sample",
-       fill="CAZyme class")+
+       y="Number of unique genes per sample",
+       title = "Top 15 CAZyme subclasses by median number of unique gene sequences",
+       fill="CAZyme class",
+       subtitle = "Some genes were assigned to multiple subclasses because they have multiple modules;\ntherefore, some subclasses may seem more abundant")+
   theme_bw()+
   scale_fill_viridis_d(option = "C",
                        alpha = 0.5)+
@@ -406,12 +370,77 @@ top.cazyme.plot <- top.caz_subclasses%>%
                       legend.position = "right") # legend on the right
 
 #+ fig.height=5, fig.width=10
-print(top.cazyme.plot)
+print(top.cazyme.initial.boxplot)
 
 for(image.format in image.formats){
-  ggsave(filename =paste( "top-cazymes", image.format, sep = "."),
+  ggsave(filename =paste( "top-cazymes-initial", image.format, sep = "."),
          path = mag.figures,
-         plot=top.cazyme.plot,
+         plot=top.cazyme.initial.boxplot,
+         width=10, height=5,units="in",
+         dpi=300,device = image.format)
+}
+
+
+#+ echo=FALSE
+#### 5.2.1 Keep CAZyme subclasses with prevalence >2 samples out of 11. ####
+#'
+#' #### Keep CAZyme subclasses with prevalence >2 samples out of 11.
+top15.caz_subclasses.filtered <- caz_subclass.prevalence %>%
+  filter(prevalence > 2)%>%
+  left_join(non_red_genes.by_sample.caz_subclass, by =join_by(caz_subclass))%>%
+  filter(!is.na(caz_subclass))%>%
+  group_by(caz_subclass)%>%
+  summarise(median_n_locus_tag_clusters = median(n_locus_tag_clusters), # calculate median and mean
+            mean_n_locus_tag_clusters = mean(n_locus_tag_clusters))%>%
+  arrange(desc(median_n_locus_tag_clusters))%>%
+  slice_head(n = 15)%>% # get the first 15
+  left_join(non_red_genes.by_sample.caz_subclass)%>% # add the mean and median to the full dataset (keep only rows of 15 KOs)
+  mutate(caz_subclass = factor(caz_subclass, levels = unique(caz_subclass)),  # sort the names for plot
+         caz_class = factor(caz_class, levels = unique(caz_class)))
+
+top.cazyme.filtered.boxplot <- top15.caz_subclasses.filtered %>%
+  ggplot(aes(x = caz_subclass, y = n_locus_tag_clusters, fill = caz_class))+
+  geom_boxplot()+
+  geom_jitter() +
+  # geom_text(subset(top.ko,
+  #                  locus_tag_cluster%in%top15.genes.filtered$locus_tag_cluster)%>%
+  #             distinct(locus_tag_cluster,.keep_all = TRUE),
+  #           inherit.aes = TRUE,
+  #           mapping=aes(x=locus_tag_cluster,
+  #                       # y=tpm,
+  #                       y = n_locus_tags,
+  #                       label=rep_gene_len),
+  #           vjust = -0.3, nudge_y = -0.5,
+  #           size=3)+ # add counts of genes
+  theme_bw()+
+  scale_fill_viridis_d(option = "C",
+                       alpha = 0.5)+
+  labs(x="CAZyme subclass",
+       # y="Median TPM",
+       y="Number of unique genes per sample",
+       title = "Top 15 CAZyme subclasses by median number of unique gene sequences",
+       fill="CAZyme class",
+       subtitle = "Only prevalent subclasses found in at least 2 out of 11 samples are shown here")+
+  theme(
+    # plot.margin=unit(c(0.2,0.2,0.2,0.5), 'cm'),
+    axis.text.x = element_text(size=10,angle = 45,hjust=1),
+    axis.text.y = element_text(size=10), # size of y axis ticks
+    axis.title = element_text(size = 10), # size of axis names
+    plot.title = element_text(size = 15), # size of plot title
+    plot.caption = element_text(size=13), # size of plot caption
+    legend.text = element_text(size = 10), # size of legend text
+    legend.title = element_text(size = 15), # size of legend title
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    legend.position = "right" )
+
+#+ fig.height=5, fig.width=10
+print(top.cazyme.filtered.boxplot)
+
+for(image.format in image.formats){
+  ggsave(filename = paste("top-cazymes-filtered-prevalence", image.format,sep = "."),
+         path = mag.figures,
+         plot=top.cazyme.filtered.boxplot,
          width=10, height=5,units="in",
          dpi=300,device = image.format)
 }
@@ -433,14 +462,14 @@ top.cazyme_species.fname <- file.path(mag.tables, "cazymes-blastp-taxonomy-top-s
 if(!file.exists(top.cazyme_species.fname)){
   write.table(top.cazyme_species,
               file=top.cazyme_species.fname,
-              sep="\t",col.names = T,row.names = F)
+              sep="\t",col.names = TRUE,row.names = FALSE)
   
 }
 
 #' Check how many species the top 15 CAZyme subclasses were found in BLASTP 
 #' (showing the first ten):
 cazymes.blast.df%>%
-  filter(caz_db %in%top15.caz_subclasses$caz_subclass)%>%
+  filter(caz_db %in% top15.caz_subclasses.filtered$caz_subclass)%>%
   rename("caz_subclass" = "caz_db")%>%
   group_by(caz_subclass)%>%
   count(Species, name = "n_cazymes", sort = TRUE)%>%
@@ -449,23 +478,15 @@ cazymes.blast.df%>%
   knitr::kable(format = "simple")%>%
   print()
 
-# top.caz_subclasses%>%
-#   filter(caz_subclass%in%top15.caz_subclasses$caz_subclass)%>%
-#   group_by(caz_subclass)%>%
-#   add_count(Species)%>%
-#   # count(Species,sort=TRUE)%>%
-#   filter(caz_subclass%in%c("GH45","GH11","GH44"))%>%
-#   distinct(caz_subclass,Species,Kingdom)
-
 #' Only for GH subclass:
 cazymes.blast.df%>%
   rename("caz_subclass" = "caz_db")%>%
-  left_join(top.caz_subclasses[,c("caz_subclass", "caz_class")]%>%distinct(),
+  left_join(non_red_genes.by_sample.caz_subclass[,c("caz_subclass", "caz_class")]%>%distinct(),
                           by = join_by("caz_subclass"))%>%
   filter(caz_class=="GH")%>%
   group_by(caz_subclass)%>%
   add_count(Species)%>%
-  ungroup%>%
+  ungroup()%>%
   # filter(caz_subclass%in%c("GH45","GH11","GH44"))%>%
   distinct(caz_subclass,Species,Kingdom)%>%
   count(Species,sort=TRUE)%>%
@@ -473,28 +494,16 @@ cazymes.blast.df%>%
   knitr::kable(format = "simple")%>%
   print()
 
-# top.caz_subclasses%>%
-#   filter(caz_class=="GH")%>%
-#   group_by(caz_subclass)%>%
-#   add_count(Species)%>%
-#   ungroup%>%
-#   # filter(caz_subclass%in%c("GH45","GH11","GH44"))%>%
-#   distinct(caz_subclass,Species,Kingdom)%>%
-#   count(Species,sort=TRUE)
-
 #' Save data.
 rm(top.ko.initial.boxplot)
 rm(top.ko.filtered.boxplot)
-rm(top.cazyme.plot)
-rm(top15.caz_subclasses)
-rm(top15.genes.initial)
-rm(top15.ko.filtered)
-rm(top15.ko.initial)
+rm(top.cazyme.initial.boxplot)
+rm(top.cazyme.filtered.boxplot)
+rm(top15.caz_subclasses.filtered)
 rm(cazymes.blast.df)
 rm(representative.gene_lengths)
 gc()
 # save.image("./output/rdafiles/gene-annotation-workspace.RData")
-
 
 #+ echo=FALSE
 ## 8. Find core CAZymes and KOs and compare with iMGMC. ####
@@ -618,14 +627,15 @@ if(!file.exists(nmr.core.ko.df.fname)){
   write.table(nmr.core.ko.df,
               file = nmr.core.ko.df.fname,
               sep = "\t",
-              row.names = F)
+              row.names = FALSE)
   
 }
 
 #+ echo=FALSE
-## 9. Match gene annotation with taxonomic classification from QIIME2 and Kraken2. ####
+## 9. Match gene annotation with taxonomic classification from GTDB-tk. ####
 #'
-#' ## Match gene annotation with taxonomic classification from QIIME2 and Kraken2.
+#' ## Match gene annotation with taxonomic classification from GTDB-tk.
+#' Also look for a few taxa that were found in 16S data.
 seqkit.all.df <- readRDS(file = seqkit.all.df.fname.rds)
 gtdbtk.coverm.drep <- readRDS(file = gtdbtk.coverm.drep.fname.rds)
 gtdbtk.coverm.metabat2 <- readRDS(file = gtdbtk.coverm.metabat2.fname.rds)
@@ -635,144 +645,322 @@ gtdbtk.taxonomy <- readRDS(gtdbtk.taxonomy.clean.fname.rds)
 #' Find p-251-o5 in BLASTN classification of contigs: 14 contigs
 blastn.coverm.megahit%>%
   filter(grepl("p-251-o5",classification))%>%
-  str
+  knitr::kable(format = "simple")%>%
+  print()
 #' Prevotellaceae UCG-003: 32 contigs
 blastn.coverm.megahit%>%
   filter(grepl("Prevotellaceae UCG-003",classification))%>%
-  str
+  knitr::kable(format = "simple")%>%
+  print()
 
 #' Treponema and Fibrobacter in representative MAGs (GTDB-tk): 8 and 1 MAGs
 gtdbtk.taxonomy%>%
   filter(grepl("Treponema|Fibrobacter",Genus))%>%
-  arrange(Genus)
+  arrange(Genus)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 #' Erysipelotrichaceae and Prevotellaceae: 5 MAGs
 gtdbtk.taxonomy%>%
   filter(grepl("Erysipelotrichaceae|Prevotellaceae",Family))%>%
-  arrange(Genus)
+  arrange(Genus)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
 #+ echo=FALSE
 ### 9.1 Which individual MAGs have the highest number of unique CAZyme subclasses. #### 
 #'
 #' ### Which individual MAGs have the highest number of unique CAZyme subclasses.
-mag.with.caz.df<-gtdbtk.taxonomy%>%
-  left_join(seqkit.with_taxonomy)%>%
-  filter(!is.na(secondary_cluster))%>%
-  filter(is_drep_bin)%>%
-  select(sample,contig_id,secondary_cluster,
-         gtdbtk_result,
-         Phylum,
-         Family,
-         Genus,Species,GC)%>%
-  left_join(gene.annotation.df)%>%
-  filter(!is.na(caz_subclass))%>%
-  select(sample,caz,caz_subclass,caz_class,locus_tag_cluster,
-         locus_tag,tpm,
-         Family,Genus,secondary_cluster)
-str(mag.with.caz.df)
-
-# For each MAG:
-mag.with.caz.df%>%
+#' Join samples and contigs from classified bins with taxonomy classification,
+#' then with gene annotation for each contig
+mag.classification.per_contig <- seqkit.all.df %>%
+  filter(is_representative_bin == TRUE)%>% # Only representative 128 bins
+  mutate(bin_id = as.integer(bin_id))%>%
+  left_join(gtdbtk.taxonomy, by = join_by(sample_id, bin_id, secondary_cluster))
+  
+#' Combine distinct locus_tag_clusters with gene annotation per contig and add
+#' CAZyme data:
+mag.classification.caz <- mag.classification.per_contig %>%
+  left_join(gene.annotation.df,by = join_by(sample_id, contig_id))%>%
+  # distinct(secondary_cluster, locus_tag_cluster)%>% 
+  left_join(dbcan.df,by = join_by(locus_tag_cluster),
+            relationship = "many-to-many") # Add CAZymes
+  
+#' Count unique CAZymes and CAZyme subclasses in each MAG:
+mag.classification.caz %>% 
   group_by(secondary_cluster)%>%
-  summarise(n_caz_in_mag=n_distinct(caz),
-            n_caz_subclass_in_mag=n_distinct(caz_subclass),
-            n_cas_class_in_mag=n_distinct(caz_class))%>%
-  arrange(desc(n_caz_subclass_in_mag))%>%
-  left_join(gtdbtk.taxonomy[,c("sample","bin_id","secondary_cluster","Genus","Species")])
+  summarise(n_uniq_caz_in_mag=n_distinct(caz_with_aa_coord ),
+            n_uniq_caz_subclass_in_mag=n_distinct(caz_subclass),
+            n_uniq_cas_class_in_mag=n_distinct(caz_class))%>%
+  arrange(desc(n_uniq_caz_subclass_in_mag))%>%
+  left_join(gtdbtk.taxonomy, by = join_by(secondary_cluster))%>%
+  ggplot(aes (x = Phylum, y = n_uniq_caz_subclass_in_mag))+
+  geom_boxplot()
 
-#' For each family: focus on Treponema and Fibrobacter.
-#' We get subclasses for the whole family, not each MAG.
-mag.with.caz.df%>%
-  group_by(Family)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz),
-            n_caz_subclass_in_taxon=n_distinct(caz_subclass),
-            n_cas_class_in_taxon=n_distinct(caz_class))%>%
-  arrange(desc(n_caz_subclass_in_taxon))%>%
-  left_join(gtdbtk.taxonomy[,c("sample","bin_id","secondary_cluster",
-                               "Family","Genus","Species")])%>%
-  filter(grepl("Treponema|Erysipelotrichaceae",Family))
-#' For Prevotella and Fibrobacter:
-mag.with.caz.df%>%
-  group_by(Family)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz),
-            n_caz_subclass_in_taxon=n_distinct(caz_subclass),
-            n_cas_class_in_taxon=n_distinct(caz_class))%>%
-  arrange(desc(n_caz_subclass_in_taxon))%>%
-  left_join(gtdbtk.taxonomy[,c("sample","bin_id",
-                               "secondary_cluster","Family","Genus","Species")])%>%
-  filter(grepl("Prevotella|Fibrobacter",Genus))
+#' Find CAZyme subclasses shared by representative MAGs (presence/absence):
+mag_family.caz <- mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
+  distinct(Family, caz_subclass)
+mag_genus.caz <- mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
+  distinct(Genus, caz_subclass)
 
+#' First, convert the data into wide format: the values are genus names, so
+#' we can collapse them into strings.
+caz.membership.genus <- mag_genus.caz%>%
+  pivot_wider(names_from = Genus,
+              values_from = Genus,
+              values_fill = NA)%>%
+  as.data.frame()%>%
+  column_to_rownames("caz_subclass")%>% 
+  select(order(colnames(.)))%>%
+  unite(data = ., 
+        col ="membership", 
+        sep = ";",
+        remove = FALSE,
+        na.rm = TRUE) %>% # Concatenate genus names into a string, remove NA so we don't have a ton of semicolons
+  mutate(across(!membership, ~replace(., !is.na(.), "1")), # Replace non-NA values with 1
+         across(!membership, ~replace(., is.na(.), "0")))%>%# Replace non-NA values with 0
+  unite(col ="membership_vector",  
+        -"membership",
+        sep = "",
+        remove = TRUE,
+        na.rm = TRUE) %>%# Concatenate 1 and 0 except the column with concatenated names
+  mutate(n_taxa = str_count(membership_vector, pattern = "1")) %>% # count "1" characters
+  select(membership, membership_vector, n_taxa)%>%
+  as_tibble(rownames = "caz_subclass")
+#same code 
+caz.membership.family <- mag_family.caz%>%
+  pivot_wider(names_from = Family,
+              values_from = Family,
+              values_fill = NA)%>%
+  as.data.frame()%>%
+  column_to_rownames("caz_subclass")%>% 
+  select(order(colnames(.)))%>%
+  unite(data = ., 
+        col ="membership", 
+        sep = ";",
+        remove = FALSE,
+        na.rm = TRUE) %>% # Concatenate genus names into a string, remove NA so we don't have a ton of semicolons
+  mutate(across(!membership, ~replace(., !is.na(.), "1")), # Replace non-NA values with 1
+         across(!membership, ~replace(., is.na(.), "0")))%>%# Replace non-NA values with 0
+  unite(col ="membership_vector",  
+        -"membership",
+        sep = "",
+        remove = TRUE,
+        na.rm = TRUE) %>%# Concatenate 1 and 0 except the column with concatenated names
+  mutate(n_taxa = str_count(membership_vector, pattern = "1")) %>% # count "1" characters
+  select(membership, membership_vector, n_taxa)%>%
+  as_tibble(rownames = "caz_subclass")
+
+# At MAG level
+caz.membership.mag <- mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
+  distinct(secondary_cluster, caz_subclass)%>%
+  pivot_wider(names_from = secondary_cluster,
+              values_from = secondary_cluster,
+              values_fill = NA)%>%
+  as.data.frame()%>%
+  column_to_rownames("caz_subclass")%>% 
+  select(order(colnames(.)))%>%
+  unite(data = ., 
+        col ="membership", 
+        sep = ";",
+        remove = FALSE,
+        na.rm = TRUE) %>% # Concatenate IDs into a string, remove NA so we don't have a ton of semicolons
+  mutate(across(!membership, ~replace(., !is.na(.), "1")), # Replace non-NA values with 1
+         across(!membership, ~replace(., is.na(.), "0")))%>%# Replace non-NA values with 0
+  unite(col ="membership_vector",  
+        -"membership",
+        sep = "",
+        remove = TRUE,
+        na.rm = TRUE) %>%# Concatenate 1 and 0 except the column with concatenated names
+  mutate(n_taxa = str_count(membership_vector, pattern = "1")) %>% # count "1" characters
+  select(membership, membership_vector, n_taxa)%>%
+  as_tibble(rownames = "caz_subclass")
+
+treponema.ids<-gtdbtk.taxonomy%>%
+  filter(grepl("Treponema", Genus))%>%
+  pull(secondary_cluster)
+# CAZ subclasses found in ALL Treponema MAGs
+caz.membership.mag %>%
+  mutate(n_matches = str_count(membership, pattern = paste(treponema.ids,collapse = "|"))  )%>%
+  # filter(n_matches ==length(treponema.ids)) # ALL mags
+  filter(n_matches >0) # ANY mags
+
+caz.membership.genus %>%
+  filter(grepl("Treponema", membership))
+  # filter(membership == "Treponema_D")
+
+caz.membership.mag %>%
+  filter(n_taxa == nrow(gtdbtk.taxonomy)) # 2 subclasses
+
+caz.membership.mag%>%
+  filter(n_taxa ==1)# 28
+
+caz.membership.mag%>%
+  filter(n_taxa ==1)%>%
+  left_join(gtdbtk.taxonomy[,c("secondary_cluster","Family","Genus","Species")],
+            by = join_by("membership" == "secondary_cluster"))%>%
+  count(Genus)
+
+caz.membership.genus %>%
+  filter(n_taxa == n_distinct(gtdbtk.taxonomy$Genus)) # 2 subclasses, same as above
+
+caz.membership.genus %>%
+  filter(n_taxa ==1)  # 42 because we're looking at genera
+
+caz.membership.genus %>%
+  left_join(dbcan.df[,c("caz_subclass", "caz_class")]%>%distinct())%>%
+  group_by(caz_class)%>%
+  mutate(mean_n_taxa = mean(n_taxa))%>%
+  ungroup()%>%
+  arrange(desc(mean_n_taxa))%>%
+  mutate(caz_class = factor(caz_class, levels = unique(caz_class)))%>%
+  ggplot(aes(x= caz_class, y = n_taxa)) +
+  geom_boxplot()
+
+caz.membership.genus %>%
+  left_join(dbcan.df[,c("caz_subclass", "caz_class")]%>%distinct())%>%
+  arrange(desc(n_taxa))%>%
+  mutate(caz_subclass = factor(caz_subclass, levels = caz_subclass))%>%
+  ggplot(aes(x= caz_subclass, y = n_taxa)) +
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle = 45))
+
+# caz.membership.mag %>%
+caz.membership.genus %>%
+  filter(caz_subclass %in% nmr.core.caz.vector)%>%
+  left_join(dbcan.df[,c("caz_subclass", "caz_class")]%>%distinct())%>%
+  arrange(desc(n_taxa))%>%
+  mutate(caz_subclass = factor(caz_subclass, levels = caz_subclass))%>%
+  ggplot(aes(x= caz_subclass, y = n_taxa)) +
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle = 45))
+
+# CORE CAZY ARE NOT ALWAYS WITHIN MAGS
+dbcan.df%>%
+  filter(caz_subclass == "GH151")%>%
+  left_join(gene.annotation.df)%>%
+  select(sample_id,contig_id)%>%
+  left_join(seqkit.all.df)
+
+
+# FIND ALL GENES IN ALL MAGS, NOT ONLY DREP
+seqkit.all.df%>%
+  filter(!secondary_cluster %in% c("unassembled", "low_quality_mag"))%>%
+  left_join(gene.annotation.df)%>%
+  distinct(locus_tag_cluster)
+
+
+mag_family.caz %>%  
+  filter( grepl("Treponemataceae", Family)) %>%
+  nrow()
+mag_family.caz %>%  
+  filter( grepl("Erysipelotrichaceae",Family))%>%
+  nrow()
+mag_family.caz %>%
+  filter( grepl("Treponemataceae", Family) & grepl("Erysipelotrichaceae",Family))%>%
+  nrow()
+
+#' For Treponema and Fibrobacter:
+mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
+  # left_join(gtdbtk.taxonomy, by = join_by(secondary_cluster))%>%
+  group_by(Genus)%>%
+  summarise(n_uniq_caz_in_taxon=n_distinct(caz_with_aa_coord),
+            n_uniq_caz_subclass_in_taxon=n_distinct(caz_subclass),
+            n_uniq_cas_class_in_taxon=n_distinct(caz_class))%>%
+  arrange(desc(n_uniq_caz_subclass_in_taxon))%>%
+  filter(grepl("Treponema|Fibrobacter",Genus))%>%
+  knitr::kable(format = "simple")%>%
+  print()
+
+#' For Prevotellaceae (named Bacteroidaceae in GTDB-tk) and Erysipelotrichaceae:
+mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
+  # left_join(gtdbtk.taxonomy, by = join_by(secondary_cluster))%>%
+  group_by(Family)%>%
+  summarise(n_uniq_caz_in_taxon=n_distinct(caz_with_aa_coord),
+            n_uniq_caz_subclass_in_taxon=n_distinct(caz_subclass),
+            n_uniq_cas_class_in_taxon=n_distinct(caz_class))%>%
+  arrange(desc(n_uniq_caz_subclass_in_taxon))%>%
+  filter(grepl("Erysipelotrichaceae|Bacteroidaceae",Family))%>%
+  knitr::kable(format = "simple")%>%
+  print()
+  
 #' Break down each MAG by CAZyme subclasses: get the highest number of CAZymes 
 #' for each subclass in each MAG.
-treponema.caz<-mag.with.caz.df%>%
+caz_per_family <- mag.classification.caz %>%
+  filter(!is.na(caz_subclass))%>%
   group_by(Family,caz_subclass)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz))%>%
-  arrange(Family,desc(n_caz_in_taxon))%>%
+  summarise(n_uniq_caz_in_taxon=n_distinct(caz_with_aa_coord))%>%
+  arrange(Family,desc(n_uniq_caz_in_taxon))%>%
+  ungroup()
+caz_per_genus <- mag.classification.caz%>%
+  filter(!is.na(caz_subclass))%>%
+  group_by(Genus,caz_subclass)%>%
+  summarise(n_uniq_caz_in_taxon=n_distinct(caz_with_aa_coord))%>%
+  arrange(Genus,desc(n_uniq_caz_in_taxon))%>%
+  ungroup()
+
+treponema.caz <- caz_per_family %>%
   filter(grepl("Treponema",Family))
-head(treponema.caz)
+head(treponema.caz)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
-fibrobacter.caz<-mag.with.caz.df%>%
-  group_by(Genus,caz_subclass)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz))%>%
-  arrange(Genus,desc(n_caz_in_taxon))%>%
+fibrobacter.caz <- caz_per_genus %>%
   filter(grepl("Fibrobacter",Genus))
-head(fibrobacter.caz)
+head(fibrobacter.caz)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
-erysipelotrichaceae.caz<-mag.with.caz.df%>%
-  group_by(Family,caz_subclass)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz))%>%
-  arrange(Family,desc(n_caz_in_taxon))%>%
+erysipelotrichaceae.caz <- caz_per_family%>%
   filter(grepl("Erysipelotrichaceae",Family))
-head(erysipelotrichaceae.caz)
+head(erysipelotrichaceae.caz)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
-prevotella.caz<-mag.with.caz.df%>%
-  group_by(Genus,caz_subclass)%>%
-  summarise(n_caz_in_taxon=n_distinct(caz))%>%
-  arrange(Genus,desc(n_caz_in_taxon))%>%
+prevotella.caz <- caz_per_genus%>%
   filter(grepl("Prevotella",Genus))
-head(prevotella.caz)
+head(prevotella.caz)%>%
+  knitr::kable(format = "simple")%>%
+  print()
 
 #' How many CAZyme subclasses are found in Treponema but not Fibrobacter: 48
 length(setdiff(treponema.caz$caz_subclass,fibrobacter.caz$caz_subclass))
 #' Reverse: 23
 length(setdiff(fibrobacter.caz$caz_subclass,treponema.caz$caz_subclass))
 
-#' Among all CAZ subclasses in MAGs, four are not found in Treponema:
-caz.not.in.treponema<-mag.with.caz.df%>%
-  filter(!grepl("Treponema",Family))%>%
-  distinct(caz_subclass)%>%
-  pull
-setdiff(treponema.caz$caz_subclass,caz.not.in.treponema)
+#' Alternative way of showing this:
+caz_subclasses.venn <- venn(list ("Treponema" = unique(treponema.caz$caz_subclass),
+                                     "Fibrobacter" = unique(fibrobacter.caz$caz_subclass),
+                                  "Erysipelotrichaceae" = unique(erysipelotrichaceae.caz$caz_subclass),
+                                  "Prevotella" = unique(prevotella.caz$caz_subclass)))
+#' Get all sets (both shared and unique to each taxon)
+caz_subclasses.by_set <- attr(caz_subclasses.venn, "intersections")
+#' Convert list into dataframe
+caz_subclasses.by_set <- stack(caz_subclasses.by_set)%>%
+  rename("caz_subclass" = "values",
+         "Taxon" = "ind")
 
-#' Four are not found in Fibrobacter:
-caz.not.in.fibrobacter<-mag.with.caz.df%>%
-  filter(!grepl("Fibrobacter",Genus))%>%
-  distinct(caz_subclass)%>%
-  pull
-setdiff(fibrobacter.caz$caz_subclass,caz.not.in.fibrobacter)
+caz_subclasses.by_set %>%
+  filter(grepl("Treponema", Taxon) & ! grepl("Fibrobacter", Taxon))%>%
+  nrow()
+caz_subclasses.by_set %>%
+  filter(grepl("Fibrobacter", Taxon)  & ! grepl("Treponema", Taxon))%>%
+  nrow()
 
-#' Erysipelotrichaceae has all:
-caz.not.in.erysipelotrichaceae<-mag.with.caz.df%>%
-  filter(!grepl("Erysipelotrichaceae",Family))%>%
-  distinct(caz_subclass)%>%
-  pull
-setdiff(erysipelotrichaceae.caz$caz_subclass,caz.not.in.erysipelotrichaceae)
-
-#' Two are not found in Prevotella
-caz.not.in.prevotella<-mag.with.caz.df%>%
-  filter(!grepl("Prevotella",Genus))%>%
-  distinct(caz_subclass)%>%
-  pull
-setdiff(prevotella.caz$caz_subclass,caz.not.in.prevotella)
-
-
+caz_subclasses.by_set%>%
+  filter(grepl("Erysipelotrichaceae", Taxon))
 #+ echo=FALSE
-## 10. Summary statistics of all high-quality MAGs including gene annotation. ####
+## 10. Summary statistics of all MAGs including gene annotation. ####
 #'
-#' ## Summary statistics of all high-quality MAGs including gene annotation.
+#' ## Summary statistics of all MAGs including gene annotation.
 #' Calculate genome size, contig number, GC%, CDS number, 
 #' CheckM2 completeness and contamination
 metabat2.date_time<-"20250612_13_37_47"
-checkm2.high_quality_mags<-read.table("./output/mag_assembly/checkm2_output/20250619_05_47_09_high_quality_mags.tsv",
+checkm2.high_quality_mags<-read.table(checkm2.high_quality_mags.fname,
                                       sep="\t",header = T)%>%
   as_tibble()%>%
   rename("genome"="Name")%>%
@@ -780,36 +968,51 @@ checkm2.high_quality_mags<-read.table("./output/mag_assembly/checkm2_output/2025
   separate_wider_delim(genome,delim = "_bin.",names = c("sample","bin_id"))%>%
   mutate(bin_id=as.integer(bin_id))
 
-mag.stats.with_annotation.df<-seqkit.with_taxonomy%>%
-  filter(is_drep_bin)%>%
-  select(sample,contig_id,bin_id,contig_length,secondary_cluster,GC)%>%
+checkm2.all_mags<-read.table(checkm2.all_mags.fname,
+                                      sep="\t",header = T)%>%
+  as_tibble()%>%
+  rename("genome"="Name")%>%
+  mutate(genome=gsub(paste0(metabat2.date_time,"_"),"",genome))%>%
+  separate_wider_delim(genome,delim = "_bin.",names = c("sample","bin_id"))%>%
+  mutate(bin_id=as.integer(bin_id))
+
+mag.stats.with_annotation.df <- seqkit.all.df %>%
+  filter(is_representative_bin !="unassembled" ) %>%
+  select(sample_id,contig_id,bin_id,contig_length,secondary_cluster,GC)%>%
   filter(!is.na(secondary_cluster))%>%
-  group_by(secondary_cluster)%>%
-  mutate(genome_size_mbp=sum(contig_length)/10^6,
+  group_by(sample_id, bin_id)%>%
+  mutate(genome_size = sum(contig_length),
          mag_gc=mean(GC),
-         n_contig=n_distinct(contig_id))%>%
-  ungroup%>%
-  full_join(gene.annotation.df[,c("locus_tag_cluster","locus_tag","sample","contig_id",
-                                  "gene_length","gene_type")])%>%
-  filter(!is.na(secondary_cluster))%>%
-  group_by(secondary_cluster)%>%
-  mutate(n_cds = n_distinct(locus_tag,na.rm = T)) %>% # add gene annotations
-  ungroup%>%
-  distinct(secondary_cluster,.keep_all = T)%>%
-  select(-contig_length,-contig_id,-GC)%>%
-  left_join(checkm2.high_quality_mags)%>%
-  select(-locus_tag_cluster, -locus_tag,-gene_length,-gene_type,
-         -Completeness_Model_Used, -Translation_Table_Used,
-         -Genome_Size,-GC_Content,-Additional_Notes)%>%
-  left_join(gtdbtk.taxonomy)%>%
+         n_contig = n_distinct(contig_id))%>%
+  ungroup()%>%
+  full_join(gene.annotation.df[,c("locus_tag_cluster","locus_tag","sample_id","contig_id",
+                                  "gene_length","gene_type")],
+            by = join_by(sample_id, contig_id))%>%
+  filter(!is.na(secondary_cluster))%>% # remove genes that mapped to unassembled contigs
+  group_by(sample_id, bin_id)%>%
+  mutate(n_cds = n_distinct(locus_tag, na.rm = TRUE)) %>% # add gene annotations
+  ungroup()%>%
+  distinct(sample_id, bin_id, .keep_all = TRUE)%>%
+  select(-contig_length, -contig_id, -GC, -locus_tag_cluster, -locus_tag,
+         -gene_length, -gene_type)%>%
+  mutate(bin_id = as.integer(bin_id))%>%
+  left_join(checkm2.all_mags, #checkm2.high_quality_mags, 
+            by = join_by("sample_id" == "sample", bin_id))%>%
+  select(#-Completeness_Model_Used, -Translation_Table_Used,-Additional_Notes,
+         -Genome_Size,-GC_Content, -Total_Contigs)%>%
+  left_join(subset(gtdbtk.taxonomy, select = -c(sample_id, bin_id)),
+            by = "secondary_cluster")%>%
   arrange(secondary_cluster)
 head(mag.stats.with_annotation.df)
 nrow(mag.stats.with_annotation.df)
-# 
-# write.table(mag.stats.with_annotation.df,
-#             file="./output/rtables/mag-stats-with-n_cds.tsv",
-#             sep = "\t", row.names = F)
 
+mag.stats.with_annotation.df.fname <- file.path(mag.tables, "mag-stats-with-n_cds-new-all_mag.tsv")
+if(!file.exists(mag.stats.with_annotation.df.fname)){
+  write.table(mag.stats.with_annotation.df,
+              file= mag.stats.with_annotation.df.fname,
+              sep = "\t", row.names = FALSE)
+  
+}
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
