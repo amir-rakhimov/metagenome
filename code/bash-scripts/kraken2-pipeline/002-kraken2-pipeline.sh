@@ -84,6 +84,33 @@ source config/bash/config.sh
 
 ######
 
+# Function that checks if a required file exists or not
+require() { [[ -s "$1" ]] || { echo "ERROR: required file missing: $1" >&2; exit 1; }; }
+# Function that marks a sample as done (in a hidden directory)
+is_done()   { [[ -e "${mark_dir}/${2}.${1}.done" ]]; }   # is_done STEP SAMPLE
+mark_done() { touch "${mark_dir}/${2}.${1}.done"; }      # mark_done STEP SAMPLE
+
+# 1. Read the input file list
+[[ -s "${SAMPLES_TSV}" ]] || { echo "ERROR: metadata $SAMPLES_TSV missing or empty" >&2; exit 1; }
+# Remove CR LF
+sed -i 's/\r$//' "${SAMPLES_TSV}"
+
+declare -A R1 R2
+SAMPLES=()
+while IFS=$'\t' read -r sample_id fwd_absolute_path rev_absolute_path \
+    || [[ -n "${sample_id}" ]]
+do
+    [[ "${sample_id}" == "sample_id" || -z "${sample_id}" ]] && continue
+    r1="${fwd_absolute_path}"
+    r2="${rev_absolute_path}"
+    for f in "${r1}" "${r2}"; do
+        [[ -s "${f}" ]] || { echo "ERROR: missing input for ${sample_id}: ${f}" >&2; exit 1; } # True if file exists and has a size greater than zero.
+    done
+    SAMPLES+=("${sample_id}"); R1[$sample_id]="${r1}"; R2[$sample_id]="${r2}"
+done <  "${SAMPLES_TSV}"
+
+(( ${#SAMPLES[@]} > 0 )) || { echo "ERROR: no samples found" >&2; exit 1; } # Counts the number of elements in the final array of samples. If
+                                                    # the array is empty, raises an error
 
 # Input
 # FASTQ files with decontaminated reads (either from pipeline #1 or supplied by user). 
@@ -114,9 +141,7 @@ source config/bash/config.sh
 # kraken2_db_dir=data/kraken2_db/k2_large_${kraken2_db_date} 
 
 echo "$(date +"%F %H:%M:%S")"
-# 1. Remove host DNA with bowtie2 (done)
-
-# 2. Classify microbiome samples using Kraken2
+# 1. Classify microbiome samples using Kraken2
 
 # We need the database and FASTA file of sequences
 # kraken2 --db $DBNAME seqs.fq
@@ -134,36 +159,39 @@ echo "$(date +"%F %H:%M:%S")"
 # And tee command will be tee kraken2_stdout.txt
 # instead of tee kraken2_stdout_no_minimizer_data.txt
 echo "$(date +"%F %H:%M:%S")"
-echo "Running kraken2"
-for FILE in ${bowtie2_decontam_fastq_dir}/*decontam_R1.fastq.gz
-do 
- SAMPLE=$(echo ${FILE} | sed "s/_trim_decontam_R1\.fastq\.gz//")
- base_name=$(basename "$SAMPLE" )
- echo "$(date +"%F %H:%M:%S")"
- echo "Running kraken2 on ${SAMPLE}"
- kraken2 --paired \
-	--db ${kraken2_db_dir} \
-	--threads ${nthreads} \
-	--minimum-hit-groups 3 \
-	--gzip-compressed \
-	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R1.fastq.gz \
-	${bowtie2_decontam_fastq_dir}/${base_name}_trim_decontam_R2.fastq.gz \
-	--output ${kraken2_output_dir}/${base_name}_no_minimizer_data.kraken2 \
-	--classified-out ${kraken2_classified_reads_dir}/${base_name}_classified_#.fq \
-	--report ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report \
-	--confidence ${confidence_kraken2}
- ls -alh ${kraken2_output_dir}/${base_name}*
- gzip -9 --best ${kraken2_output_dir}/${base_name}_no_minimizer_data.kraken2
- gzip -9 --best ${kraken2_classified_reads_dir}/${base_name}_classified__1.fq
- gzip -9 --best ${kraken2_classified_reads_dir}/${base_name}_classified__2.fq
- ls -alh ${kraken2_output_dir}/${base_name}*
- echo "running rclone on ${SAMPLE}"
- ~/rclone-v1.70.2-linux-amd64/rclone copy -v --create-empty-src-dirs \
- 	${kraken2_output_dir}/${base_name}* \
-	gdrive:projects/metagenome/supercomputer/kraken2_pipeline/kraken2_output/
- rm ${kraken2_output_dir}/${base_name}_no_minimizer_data.kraken2.gz
- rm ${kraken2_classified_reads_dir}/${base_name}_classified__*.fq.gz;
-done  2>&1 |tee kraken2_stdout_no_minimizer_data.txt   
+mark_dir="${kraken2_output_dir}/.done"
+mkdir -p "${mark_dir}"
+echo "Running Kraken2"
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+    if is_done kraken2 "${SAMPLE_ID}"; then
+        echo "Skipping Kraken2 for ${SAMPLE_ID}"; continue
+    fi
+    echo "Running Kraken2 on ${SAMPLE_ID}"
+    echo "$(date +"%F %H:%M:%S")"
+	kraken2 --paired \
+		--db "${kraken2_db_dir}" \
+		--threads "${nthreads_kraken2}" \
+		--minimum-hit-groups 3 \
+		--gzip-compressed \
+		"${R1[$SAMPLE_ID]}" \
+		"${R2[$SAMPLE_ID]}" \
+		--output "${kraken2_output_dir}/${SAMPLE_ID}_no_minimizer_data.kraken2" \
+		--classified-out "${kraken2_classified_reads_dir}/${SAMPLE_ID}_classified_#.fq" \
+		--report "${kraken2_reports_dir}/${SAMPLE_ID}_no_minimizer_data.k2report" \
+		--confidence "${confidence_kraken2}"
+	gzip -9 --best "${kraken2_output_dir}/${SAMPLE_ID}_no_minimizer_data.kraken2"
+	gzip -9 --best "${kraken2_classified_reads_dir}/${SAMPLE_ID}_classified__1.fq"
+	gzip -9 --best "${kraken2_classified_reads_dir}/${SAMPLE_ID}_classified__2.fq"
+	# echo "running rclone on ${SAMPLE_ID}"
+	# ~/rclone-v1.70.2-linux-amd64/rclone copy -v --create-empty-src-dirs \
+	# 	${kraken2_output_dir}/${SAMPLE_ID}* \
+	# 	gdrive:projects/metagenome/supercomputer/kraken2_pipeline/kraken2_output/
+	# rm ${kraken2_output_dir}/${SAMPLE_ID}_no_minimizer_data.kraken2.gz
+	# rm ${kraken2_classified_reads_dir}/${SAMPLE_ID}_classified__*.fq.gz;
+    mark_done kraken2 "${SAMPLE_ID}";
+done 2>&1 |tee "${kraken2_output_dir}/kraken2_stdout_no_minimizer_data.txt"
+
 ### --db
 ### --threads
 ### -minimum-hit groups
@@ -179,7 +207,7 @@ done  2>&1 |tee kraken2_stdout_no_minimizer_data.txt
 ### in the read sequences (#4), and the estimate of the number of distinct
 ### minimizers associated with a taxon in the read sequence data (#5)
 
-# 3. Run bracken for abundance estimation of microbiome samples
+# 2. Run bracken for abundance estimation of microbiome samples
 # Run with no minimizer data
 # If you want to run with minimizers, the FOR command will be 
 # for FILE in ${kraken2_reports_dir}/*.k2report
@@ -196,23 +224,30 @@ done  2>&1 |tee kraken2_stdout_no_minimizer_data.txt
 # instead of gzip -9 --best ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report
 # And tee command will be tee bracken_stdout.txt
 # instead of tee bracken_stdout_no_minimizer_data.txt
+mark_dir="${bracken_output_dir}/.done"
+mkdir -p "${mark_dir}"
 echo "$(date +"%F %H:%M:%S")"
-echo "Running bracken"
-for FILE in ${kraken2_reports_dir}/*_no_minimizer_data.k2report
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/\.k2report//"| sed "s/_no_minimizer_data//")
-  base_name=$(basename "$SAMPLE" )
-  echo "$(date +"%F %H:%M:%S")"
-  echo "Running bracken on ${SAMPLE}"
-  bracken -d ${kraken2_db_dir} \
-	-i ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report \
-	-r ${read_len} \
-	-l S \
-	-t ${bracken_threshold} \
-	-o ${bracken_output_dir}/${base_name}_no_minimizer_data.bracken \
-	-w ${bracken_reports_dir}/${base_name}_no_minimizer_data.breport
-  gzip -9 --best ${kraken2_reports_dir}/${base_name}_no_minimizer_data.k2report;
-done 2>&1 |tee bracken_stdout_no_minimizer_data.txt
+echo "Running Bracken"
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+    if is_done bracken "${SAMPLE_ID}"; then
+        echo "Skipping Bracken for ${SAMPLE_ID}"; continue
+    fi
+	KRAKEN2_REPORT="${kraken2_reports_dir}/${SAMPLE_ID}_no_minimizer_data.k2report"
+	require "${KRAKEN2_REPORT}"
+    echo "Running Bracken on ${SAMPLE_ID}"
+    echo "$(date +"%F %H:%M:%S")"
+	bracken -d ${kraken2_db_dir} \
+		-i "${KRAKEN2_REPORT}" \
+		-r "${read_len}" \
+		-l S \
+		-t "${bracken_threshold}" \
+		-o "${bracken_output_dir}/${SAMPLE_ID}_no_minimizer_data.bracken" \
+		-w "${bracken_reports_dir}/${SAMPLE_ID}_no_minimizer_data.breport"
+	gzip -9 --best "${KRAKEN2_REPORT}"
+	mark_done bracken "${SAMPLE_ID}";
+done 2>&1 |tee "${bracken_output_dir}/bracken_stdout_no_minimizer_data.txt"
+
 ### -d
 ### -i
 ### -r is read length
@@ -235,19 +270,30 @@ done 2>&1 |tee bracken_stdout_no_minimizer_data.txt
 #SAMPLE:testdir/file
 #base_name:file
 
-# 4. Generate Krona plots
+# 3. Generate Krona plots
+mark_dir="${bracken_krona_txt_dir}/.done"
+mkdir -p "${mark_dir}"
 echo "$(date +"%F %H:%M:%S")"
 echo "Generating Krona plots"
-for FILE in ${bracken_reports_dir}/*.breport
-do 
-  SAMPLE=$(echo ${FILE} | sed "s/\.breport//" )
-  base_name=$(basename "$SAMPLE" )
-  kreport2krona.py -r ${bracken_reports_dir}/${base_name}.breport \
-    -o ${bracken_krona_txt_dir}/${base_name}.b.krona.txt \
-	  --no-intermediate-ranks
-  ktImportText ${bracken_krona_txt_dir}/${base_name}.b.krona.txt \
-	-o ${krona_html_dir}/${base_name}.krona.html;
-done
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+    if is_done kreport2krona "${SAMPLE_ID}"; then
+        echo "Skipping kreport2krona for ${SAMPLE_ID}"; continue
+    fi
+	BRACKEN_REPORT="${bracken_reports_dir}/${SAMPLE_ID}_no_minimizer_data.breport"
+	require "${BRACKEN_REPORT}"
+
+    echo "Generating Krona plots for ${SAMPLE_ID}"
+    echo "$(date +"%F %H:%M:%S")"
+	kreport2krona.py -r "${BRACKEN_REPORT}" \
+		-o ${bracken_krona_txt_dir}/${SAMPLE_ID}.b.krona.txt \
+		--no-intermediate-ranks
+	ktImportText ${bracken_krona_txt_dir}/${SAMPLE_ID}.b.krona.txt \
+		-o ${krona_html_dir}/${SAMPLE_ID}.krona.html;
+
+	mark_done kreport2krona "${SAMPLE_ID}";
+done 
+
 ### For kreport2krona.py:
 ### -r
 ### -o
@@ -256,49 +302,51 @@ done
 ### input is
 ### -o
 
-# Tidy up the bracken report
-echo "$(date +"%F %H:%M:%S")"
-for FILE in "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.b.krona.txt
- do
- # Extract the sample name
- SAMPLE=$(basename "${FILE}" | sed "s/\.b.krona.txt//"  | sed "s/_trim_no_minimizer_data//")
- # Process the file using awk
- awk -v sample_name="${SAMPLE}" '
-	BEGIN {FS=OFS="\t";
-		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"
-	}
-	{
-		abundance = $1
-		kingdom = ""
-		phylum = ""
-		class = ""
-		order = ""
-		family = ""
-		genus = ""
-		species = ""
+# # Tidy up the bracken report
+# echo "$(date +"%F %H:%M:%S")"
+# for FILE in "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.b.krona.txt
+# do
+# 	# Extract the sample name
+# 	SAMPLE=$(basename "${FILE}" | sed "s/\.b.krona.txt//"  | sed "s/_trim_no_minimizer_data//")
+# 	# Process the file using awk
+# 	awk -v sample_name="${SAMPLE}" '
+# 		BEGIN {FS=OFS="\t";
+# 			print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"
+# 		}
+# 		{
+# 			abundance = $1
+# 			kingdom = ""
+# 			phylum = ""
+# 			class = ""
+# 			order = ""
+# 			family = ""
+# 			genus = ""
+# 			species = ""
 
-		for (i = 2; i <= NF; i++) {
-			if ($i ~ /^k__/) kingdom = $i
-			else if ($i ~ /^p__/) phylum = $i
-			else if ($i ~ /^c__/) class = $i
-			else if ($i ~ /^o__/) order = $i
-			else if ($i ~ /^f__/) family = $i
-			else if ($i ~ /^g__/) genus = $i
-			else if ($i ~ /^s__/) species = $i
-		}
+# 			for (i = 2; i <= NF; i++) {
+# 				if ($i ~ /^k__/) kingdom = $i
+# 				else if ($i ~ /^p__/) phylum = $i
+# 				else if ($i ~ /^c__/) class = $i
+# 				else if ($i ~ /^o__/) order = $i
+# 				else if ($i ~ /^f__/) family = $i
+# 				else if ($i ~ /^g__/) genus = $i
+# 				else if ($i ~ /^s__/) species = $i
+# 			}
 
-		print sample_name, abundance,  kingdom, phylum, class, order, family, genus, species
-	}
- ' "${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.b.krona.txt > \
-	"${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.tsv
-done
+# 			print sample_name, abundance,  kingdom, phylum, class, order, family, genus, species
+# 		}
+# 	' "${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.b.krona.txt > \
+# 		"${bracken_krona_txt_dir}"/"${SAMPLE}"_trim_no_minimizer_data.tsv
+# done
 
-awk 'FNR>1' "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.tsv | \
-	awk 'BEGIN {FS=OFS="\t";
-		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"}
-		{print}' > "${kraken2_OUTDIR}"/combined_report.tsv
-echo "$(date +"%F %H:%M:%S")"
+# awk 'FNR>1' "${bracken_krona_txt_dir}"/*_trim_no_minimizer_data.tsv | \
+# 	awk 'BEGIN {FS=OFS="\t";
+# 		print "Sample", "Abundance", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"}
+# 		{print}' > "${kraken2_OUTDIR}"/combined_report.tsv
+# echo "$(date +"%F %H:%M:%S")"
 
+
+# ================= STOP AFTER THIS ===========
 # Analyse specific sequences
 # Cryptomeria japonica: taxid 3369
 # Glycine soja: taxid 3848
@@ -335,88 +383,6 @@ echo "$(date +"%F %H:%M:%S")"
 # cd ~/common_data/blast_databases
 # update_blastdb.pl --decompress 16S_ribosomal_RNA 
 # cd "${project_home_dir}"
-
-# #  *** Formatting options
-# #  -outfmt <String>
-# #    alignment view options:
-# #      0 = Pairwise,
-# #      1 = Query-anchored showing identities,
-# #      2 = Query-anchored no identities,
-# #      3 = Flat query-anchored showing identities,
-# #      4 = Flat query-anchored no identities,
-# #      5 = BLAST XML,
-# #      6 = Tabular,
-# #      7 = Tabular with comment lines,
-# #      8 = Seqalign (Text ASN.1),
-# #      9 = Seqalign (Binary ASN.1),
-# #     10 = Comma-separated values,
-# #     11 = BLAST archive (ASN.1),
-# #     12 = Seqalign (JSON),
-# #     13 = Multiple-file BLAST JSON,
-# #     14 = Multiple-file BLAST XML2,
-# #     15 = Single-file BLAST JSON,
-# #     16 = Single-file BLAST XML2,
-# #     17 = Sequence Alignment/Map (SAM),
-# #     18 = Organism Report
-
-
-# #    The supported format specifiers for options 6, 7 and 10 are:
-# #             qseqid means Query Seq-id
-# #                qgi means Query GI
-# #            qaccver means Query accession.version
-# #               qlen means Query sequence length
-# #             sseqid means Subject Seq-id
-# #          sallseqid means All subject Seq-id(s), separated by a ';'
-# #                sgi means Subject GI
-# #             sallgi means All subject GIs
-# #            saccver means Subject accession.version
-# #            sallacc means All subject accessions
-# #               slen means Subject sequence length
-# #               qseq means Aligned part of query sequence
-# #               sseq means Aligned part of subject sequence
-# #              score means Raw score
-# #             length means Alignment length
-# #             nident means Number of identical matches
-# #           positive means Number of positive-scoring matches
-# #               gaps means Total number of gaps
-# #               ppos means Percentage of positive-scoring matches
-# #             frames means Query and subject frames separated by a '/'
-# #             qframe means Query frame
-# #             sframe means Subject frame
-# #               btop means Blast traceback operations (BTOP)
-# #             staxid means Subject Taxonomy ID
-# #           ssciname means Subject Scientific Name
-# #           scomname means Subject Common Name
-# #         sblastname means Subject Blast Name
-# #          sskingdom means Subject Super Kingdom
-# #            staxids means unique Subject Taxonomy ID(s), separated by a ';'
-# #                          (in numerical order)
-# #          sscinames means unique Subject Scientific Name(s), separated by a ';'
-# #          scomnames means unique Subject Common Name(s), separated by a ';'
-# #         sblastnames means unique Subject Blast Name(s), separated by a ';'
-# #                          (in alphabetical order)
-# #         sskingdoms means unique Subject Super Kingdom(s), separated by a ';'
-# #                          (in alphabetical order)
-# #             stitle means Subject Title
-# #         salltitles means All Subject Title(s), separated by a '<>'
-# #              qcovs means Query Coverage Per Subject
-# #            qcovhsp means Query Coverage Per HSP
-# #             qcovus means Query Coverage Per Unique Subject (blastn only)
-
-
-# # qacc means Query accession
-# # sacc means Subject accession
-# # pident means Percentage of identical matches
-# # mismatch means Number of mismatches
-# # gapopen means Number of gap openings
-# # qstart means Start of alignment in query
-# # qend means End of alignment in query
-# # sstart means Start of alignment in subject
-# # send means End of alignment in subject
-# # evalue means Expect value
-# # bitscore means Bit score
-# # sstrand means Subject Strand
-# # btop means Blast traceback operations (BTOP) (Similar to CIGAR format in SAM, but more flexible)
 
 # # Don't use btop because the output file size will be too big
 # for FASTA_FILE in "${kraken2_filtered_reads_dir}"/*_taxid_*_R1.fasta
