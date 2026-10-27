@@ -106,8 +106,8 @@ gtdbtk.coverm.drep.plot <- gtdbtk.coverm.drep.for_plot%>%
        fill="Classification"
        )
 #' Save the plot as RDS for later.
-gtdbtk.coverm.drep.plot.fname <- file.path(mag.manuscript.figures, "gtdbtk.coverm.drep.plot.rds")
-saveRDS(gtdbtk.coverm.drep.plot, file = gtdbtk.coverm.drep.plot.fname)
+saveRDS(gtdbtk.coverm.drep.plot, file = file.path(mag.manuscript.figures, 
+                                                  "gtdbtk.coverm.drep.plot.rds"))
 
 gtdbtk.coverm.drep.plot <- gtdbtk.coverm.drep.plot +
   mag.taxonomy.barplot.theme +
@@ -209,8 +209,8 @@ blastn.coverm.megahit.plot <- blastn.coverm.megahit.for_plot%>%
   theme_bw()+
   scale_fill_manual(values = blastn.col.vec) # custom fill that is based on col.vec 
 
-blastn.coverm.megahit.plot.fname <- file.path(mag.manuscript.figures, "blastn.coverm.megahit.plot.rds")
-saveRDS(blastn.coverm.megahit.plot, file = blastn.coverm.megahit.plot.fname)
+saveRDS(blastn.coverm.megahit.plot, 
+        file = file.path(mag.manuscript.figures, "blastn.coverm.megahit.plot.rds"))
 
 blastn.coverm.megahit.plot <- blastn.coverm.megahit.plot +
   mag.taxonomy.barplot.theme +
@@ -399,5 +399,5 @@ for(image.format in image.formats){
          dpi=300,device = image.format)
 }
 sessionInfo()
-rm(list = ls(all=TRUE))
+rm(list =setdiff(ls(all.names = TRUE), c("markdown.dir")))
 gc()
