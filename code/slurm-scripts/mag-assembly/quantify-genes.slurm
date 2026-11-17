@@ -6,5 +6,6 @@
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
-echo "${RUN_ID}"
-bash code/bash-scripts/mag-assembly/006-quantify-genes.sh
+echo "${mag_RUN_ID}"
+SAMPLES_TSV="${1}"
+bash code/bash-scripts/mag-assembly/006-quantify-genes.sh "${SAMPLES_TSV}"

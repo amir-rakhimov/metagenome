@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #SBATCH -t 360:00:00
-#SBATCH -N 4
-#SBATCH -n 45
-#SBATCH --mem-per-cpu 8g
+#SBATCH -N 1
+#SBATCH --ntasks=1 
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
 #SBATCH -J mag-stats
 #SBATCH --output jobreports/%x_%j-out.txt
 #SBATCH --error jobreports/%x_%j-out.txt
@@ -10,5 +11,6 @@
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
-echo "${RUN_ID}"
-bash code/bash-scripts/mag-assembly/007-mag-stats.sh
+echo "${mag_RUN_ID}"
+SAMPLES_TSV="${1}"
+bash code/bash-scripts/mag-assembly/007-mag-stats.sh "${SAMPLES_TSV}"
