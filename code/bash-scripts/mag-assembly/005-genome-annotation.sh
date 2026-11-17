@@ -4,6 +4,7 @@ conda activate mag_assembly-tools
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
+SAMPLES_TSV="${1}"
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -18,39 +19,45 @@ source config/bash/config.sh
 # Main output: Proteins predicted by PROKKA (fasta for each file), non-redundant protein sequences (multi-fasta), 
 # CAZyme annotation (tab-separated file), KEGG Ortholog annotation.
 echo "$(date +"%F %H:%M:%S")"
+require() { [[ -s "$1" ]] || { echo "ERROR: required file missing: $1" >&2; exit 1; }; }
+# Function that marks a sample as done (in a hidden directory)
+is_done()   { [[ -e "${mark_dir}/${2}.${1}.done" ]]; }   # is_done STEP SAMPLE
+mark_done() { touch "${mark_dir}/${2}.${1}.done"; }      # mark_done STEP SAMPLE
 
-# 2. Prodigal
-# Anonymous mode (for metagenomes)
-# should I use -p meta or -p anon?
-echo "$(date +"%F %H:%M:%S")"
-# for FILE_DIR in ${megahit_output_dir}/*megahit_asm
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//" )
-#  base_name=$(basename "$SAMPLE" )
-#  mkdir "${prodigal_output_dir}"/"${base_name}"_prodigal
-#  prodigal \
-#     -i "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
-#     -o "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_coords.gbk \
-#     -a "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_proteins.faa \
-#     -p meta 2>&1 |tee "${prodigal_output_dir}"/"${base_name}"_prodigal.log;
-# done
+# 1. Read the input file list
+[[ -s "${SAMPLES_TSV}" ]] || { echo "ERROR: metadata $SAMPLES_TSV missing or empty" >&2; exit 1; }
+SAMPLES=()
+while IFS=$'\t' read -r sample_id \
+    || [[ -n "${sample_id}" ]]
+do
+    [[ "${sample_id}" == "sample_id" || -z "${sample_id}" ]] && continue
+    SAMPLES+=("${sample_id}"); 
+done <  "${SAMPLES_TSV}"
 
+(( ${#SAMPLES[@]} > 0 )) || { echo "ERROR: no samples found" >&2; exit 1; } # Counts the number of elements in the final array of samples. If
+                                                    # the array is empty, raises an error
 
-# 3. Prokka
+# Prokka
 # Input is contigs. Metagenome mode
 echo "$(date +"%F %H:%M:%S")"
-echo "Running Prokka"
-for FILE_DIR in ${megahit_output_dir}/*megahit_asm
-do 
-    SAMPLE=$(echo "${FILE_DIR}" | sed "s/\.megahit_asm//")
-    base_name=$(basename "$SAMPLE" )
+mark_dir="${prokka_logs_dir}/.done"
+mkdir -p "${mark_dir}"
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
+    if is_done prokka "${SAMPLE_ID}"; then
+        echo "Skipping PROKKA for ${SAMPLE_ID}"; continue
+    fi
+    asm="${megahit_output_dir}/${SAMPLE_ID}.megahit_asm"
     echo "$(date +"%F %H:%M:%S")"
+    echo "Running PROKKA on ${SAMPLE_ID}"
+
     prokka \
-        --outdir "${prokka_output_dir}"/"${base_name}"_prokka \
-        --prefix "${base_name}"_pred_prokka \
-        "${megahit_output_dir}"/"${base_name}".megahit_asm/"${base_name}"_final.contigs.fa \
+        --outdir "${prokka_output_dir}"/"${SAMPLE_ID}"_prokka \
+        --prefix "${SAMPLE_ID}"_pred_prokka \
+        "${asm}/${SAMPLE_ID}_final.contigs.fa" \
         --metagenome \
-        --cpus "${nthreads_prokka}" 2>&1 |tee "${prokka_logs_dir}"/"${base_name}"_prokka.log;
+        --cpus "${nthreads_prokka}" 2>&1 |tee "${prokka_logs_dir}"/"${SAMPLE_ID}"_prokka.log;
+    mark_done prokka "${SAMPLE_ID}";
 done
 
 # 3.1 Combine all the CDS into one file for clustering
@@ -119,22 +126,6 @@ Rename the output file for comprehension
 cp "${dbcan_output_dir}"/nr_dbcan_proteins/overview.txt \
   "${dbcan_output_dir}"/nr_dbcan_proteins/nr_dbcan_overview.txt 
 
-# for FILE_DIR in "${prodigal_output_dir}"/*_prodigal
-# do 
-#  SAMPLE=$(echo "${FILE_DIR}" | sed "s/_prodigal//")
-#  base_name=$(basename "$SAMPLE" )
-#  echo "Running dbCAN on ${base_name}"
-#  intermediate_date_time=$(date +"%F %H:%M:%S")
-#  echo "${intermediate_date_time}"
-#  run_dbcan "${prodigal_output_dir}"/"${base_name}"_prodigal/"${base_name}"_prodigal_proteins.faa \
-#    protein \
-#    --out_dir "${dbcan_output_dir}"/"${base_name}"_dbcan_proteins \
-#    --db_dir data/dbcan_db \
-#    --dia_cpu "${nthreads_annotation}" \
-#    --hmm_cpu "${nthreads_annotation}" \
-#    --stp_cpu "${nthreads_annotation}" \
-#    2>&1 |tee "${dbcan_logs_dir}"/"${base_name}"_dbcan.log;
-# done
 conda deactivate 
 
 # 6. Run KofamScan to predict KEGG orthologs
