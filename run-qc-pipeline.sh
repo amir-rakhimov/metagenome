@@ -4,6 +4,8 @@ shopt -s nullglob
 # Load config
 source config/bash/config.sh
 SAMPLES_PATHS_RAW="${1}"
+GENOMES_METADATA="${2}"
+
 mkdir -p jobreports
 ## data
 mkdir -p "${fastq_dir}"
@@ -34,6 +36,6 @@ mkdir -p "${BWA_SAM_DIR}"
 
 
 # job_id1=$(sbatch --parsable --export=ALL code/slurm-scripts/qc-pipeline/qc-commands-with-bowtie2.slurm "${SAMPLES_PATHS_RAW}")
-job_id1=$(sbatch --parsable --export=ALL code/slurm-scripts/qc-pipeline/qc-tanes.slurm "${SAMPLES_PATHS_RAW}")
+job_id1=$(sbatch --parsable --export=ALL code/slurm-scripts/qc-pipeline/qc-tanes.slurm "${SAMPLES_PATHS_RAW}" "${GENOMES_METADATA}")
 echo "Pipeline submitted"
 echo " step 1: ${job_id1}"

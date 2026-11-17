@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 source $HOME/miniconda3/etc/profile.d/conda.sh
-# Activate conda environment
 conda activate qc-tools 
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
 cd "${project_home_dir}"
-
+SAMPLES_PATHS_RAW="${1}"
+GENOMES_METADATA="${2}"
 ######
 # This script performs the following:
 # 1. Renames FASTQ files to make them shorter because the sequencing company gave the files long 
@@ -101,15 +101,8 @@ is_done()   { [[ -e "${mark_dir}/${2}.${1}.done" ]]; }   # is_done STEP SAMPLE
 mark_done() { touch "${mark_dir}/${2}.${1}.done"; }      # mark_done STEP SAMPLE
 
 # Read the input file list
-if [[ ! -s "${SAMPLES_PATHS_RAW}" ]]; then
-	awk -F',' -v raw_file_path=$fastq_dir 'BEGIN {OFS="\t"}
-		NR ==1 {print "sample_id", "forward_absolute_path", "reverse_absolute_path"}
-		NR >1 {print $1, raw_file_path"/"$1"_R1.fastq.gz", raw_file_path"/"$1"_R1.fastq.gz"}' \
-		"${SAMPLES_IDS}" > \
-		"${SAMPLES_PATHS_RAW}"
-fi
-
 [[ -s "${SAMPLES_PATHS_RAW}" ]] || { echo "ERROR: metadata $SAMPLES_PATHS_RAW missing or empty" >&2; exit 1; }
+
 # Remove CR LF
 sed -i 's/\r$//' "${SAMPLES_PATHS_RAW}"
 
@@ -132,65 +125,41 @@ done <  "${SAMPLES_PATHS_RAW}"
                                                     # the array is empty, raises an error
 
 
-# Download reference genomes
-## Heter_glaber.v1.7_hic_pac
-GENOME_FNA="${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac__genomic.fna
-if [[ ! -s "${GENOME_FNA}" ]]; then
-	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_014060925.1/download?include_annotation_type=GENOME_FASTA \
-		--output "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip
-	unzip "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip -d "${reference_genomes_dir}"
-	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCA_014060925.1/GCA_014060925.1_Heter_glaber.v1.7_hic_pac_genomic.fna \
-		"${GENOME_FNA}"
-	rm "${reference_genomes_dir}"/md5sum.txt
-	rm "${reference_genomes_dir}"/README.md
-	rm -rf "${reference_genomes_dir}"/ncbi_dataset
-	rm "${reference_genomes_dir}"/GCA_014060925.1__Heter_glaber.v1.7_hic_pac.zip
-fi
-
-## There is also a new assembly that is used by Ensembl: Naked_mole-rat_maternal
-# curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCA_944319715.1/download?include_annotation_type=GENOME_FASTA \
-# 	--output "${reference_genomes_dir}"/Naked_mole-rat_maternal.zip
-GENOME_FNA="${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC__genomic.fna
-if [[ ! -s "${GENOME_FNA}" ]]; then
-	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_012274545.1/download?include_annotation_type=GENOME_FASTA \
-		--output "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip
-	unzip "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip -d "${reference_genomes_dir}"
-	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_012274545.1/GCF_012274545.1_DMR_v1.0_HiC_genomic.fna \
-		"${GENOME_FNA}"
-	rm "${reference_genomes_dir}"/md5sum.txt
-	rm "${reference_genomes_dir}"/README.md
-	rm -rf "${reference_genomes_dir}"/ncbi_dataset
-	rm "${reference_genomes_dir}"/GCF_012274545.1__DMR_v1.0_HiC.zip
-fi
-## DMR_v1.0_HiC Damaraland mole-rat
-
-### Human T2T
-GENOME_FNA="${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0__genomic.fna
-if [[ ! -s "${GENOME_FNA}" ]]; then
-	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_009914755.1/download?include_annotation_type=GENOME_FASTA \
-		--output "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip
-	unzip "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip -d "${reference_genomes_dir}"
-	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_009914755.1/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna \
-		"${GENOME_FNA}"
-	rm "${reference_genomes_dir}"/md5sum.txt
-	rm "${reference_genomes_dir}"/README.md
-	rm -rf "${reference_genomes_dir}"/ncbi_dataset
-	rm "${reference_genomes_dir}"/GCF_009914755.1__Human_T2T-CHM13v2.0.zip
-fi
-
+# Download reference genomes for decontamination
+# Heter_glaber.v1.7_hic_pac
+# DMR_v1.0_HiC Damaraland mole-rat
+# Human T2T
 ### Mouse GRCm39
-GENOME_FNA="${reference_genomes_dir}"/GCF_000001635.27__GRCm39__genomic.fna
-if [[ ! -s "${GENOME_FNA}" ]]; then
-	curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/GCF_000001635.27/download?include_annotation_type=GENOME_FASTA \
-		--output "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip
-	unzip "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip -d "${reference_genomes_dir}"
-	mv "${reference_genomes_dir}"/ncbi_dataset/data/GCF_000001635.27/GCF_000001635.27_GRCm39_genomic.fna \
-		"${GENOME_FNA}"
-	rm "${reference_genomes_dir}"/md5sum.txt
-	rm "${reference_genomes_dir}"/README.md
-	rm -rf "${reference_genomes_dir}"/ncbi_dataset
-	rm "${reference_genomes_dir}"/GCF_000001635.27__GRCm39.zip
-fi
+### human decoy genome (downloaded separately)
+# species_name	assembly_name	ncbi_id
+# Heterocephalus glaber	Heter_glaber.v1.7_hic_pac	GCA_014060925.1
+# Fukomys damarensis	DMR_v1.0_HiC	GCF_012274545.1
+# Homo sapiens	Human_T2T-CHM13v2.0	GCF_009914755.1
+# Mus musculus	GRCm39	GCF_000001635.27
+
+while IFS=$'\t' read -r species_name assembly_name ncbi_id \
+    || [[ -n "${species_name}" ]]
+do
+    [[ "${species_name}" == "species_name"|| -z "${species_name}" ]] && continue
+    # Remove CR LF
+    ncbi_id=$(echo "${ncbi_id}" | sed  's/\r$//' )
+	assembly_name=$(echo "${assembly_name}" | sed  's/ //g' )
+    echo "$(date +"%F %H:%M:%S")"
+    GENOME_ID="${ncbi_id}__${assembly_name}"
+    GENOME_FNA="${reference_genomes_dir}/${GENOME_ID}"__genomic.fna
+    if [[ ! -s "${GENOME_FNA}" ]]; then
+        curl https://api.ncbi.nlm.nih.gov/datasets/v2alpha/genome/accession/"${ncbi_id}"/download?include_annotation_type=GENOME_FASTA \
+			--output "${reference_genomes_dir}/${GENOME_ID}".zip
+        unzip "${reference_genomes_dir}/${GENOME_ID}".zip -d "${reference_genomes_dir}"
+        mv "${reference_genomes_dir}/ncbi_dataset/data/${ncbi_id}/${ncbi_id}_${assembly_name}_genomic.fna" \
+            "${GENOME_FNA}"
+        rm "${reference_genomes_dir}"/md5sum.txt
+        rm "${reference_genomes_dir}"/README.md
+        rm -rf "${reference_genomes_dir}"/ncbi_dataset
+        rm "${reference_genomes_dir}/${GENOME_ID}".zip
+
+    fi
+done < "${GENOMES_METADATA}"
 
 ### human decoy genome
 GENOME_FNA="${reference_genomes_dir}"/hs37d5ss__human_decoy.fna
@@ -201,6 +170,7 @@ if [[ ! -s "${GENOME_FNA}" ]]; then
 	mv "${reference_genomes_dir}"/hs37d5ss.fa "${GENOME_FNA}"
 fi
 
+conda activate nfkappab_evo-tools # need a different env to avoid conflicts
 # phiX174 genome
 GENOME_FNA="${reference_genomes_dir}"/NC_001422.1__phiX174__genomic.fna
 if [[ ! -s "${GENOME_FNA}" ]]; then
@@ -214,6 +184,7 @@ if [[ ! -s "${GENOME_FNA}" ]]; then
 	rm -rf "${reference_genomes_dir}"/ncbi_dataset
 	rm "${reference_genomes_dir}"/NC_001422.1__phiX174.zip
 fi
+conda deactivate 
 
 # Add a prefix with assembly ID just in case there're duplicates
 for GENOME_FILE in "${reference_genomes_dir}"/*__genomic.fna
@@ -232,7 +203,7 @@ if [[ ! -s "${reference_genomes_dir}/hs37d5ss__human_decoy__id_replaced.fna" ]];
 		"${reference_genomes_dir}/hs37d5ss__human_decoy__id_replaced.fna"
 fi
 
-# Prepare NMR genome for Kraken2 database
+# Prepare NMR genome for Kraken2 database (old file name)
 if [[ ! -s "${reference_genomes_dir}/Heter_glaber.v1.7_hic_pac_genomic_kraken2.fna" ]]; then
 	sed 's/RPGA[0-9]\+\.1 Heterocephalus glaber isolate MEF-2018 //' \
 		"${reference_genomes_dir}/GCA_014060925.1__Heter_glaber.v1.7_hic_pac__genomic.fna" > \
@@ -272,10 +243,10 @@ fi
 for SAMPLE_ID in "${SAMPLES[@]}" 
 do
 	echo "Running FastQC on ${SAMPLE_ID}"
-	fastqc "${R1[$SAMPLE_ID]}" "${R2[$SAMPLE_ID]}" --outdir "${fastqc_output_dir}"
+	fastqc "${R1[$SAMPLE_ID]}" "${R2[$SAMPLE_ID]}" --outdir "${fastqc_raw_dir}"
 done
 ## 1.1 Run MultiQC
-multiqc "${fastqc_output_dir}"/ --outdir "${multiqc_output_dir}"
+multiqc "${fastqc_raw_dir}"/ --outdir "${multiqc_raw_dir}"
 
 # 2. Run Cutadapt
 ### Three filtering steps:
@@ -364,6 +335,6 @@ done
 
 # 4.1 Run FastQC and MultiQC on decontaminated data as a final check
 # fastqc ${bowtie2_decontam_fastq_dir}/2D10_wms_decontam_R1.fastq.gz --outdir fastqc_output
-fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_output_decontam_dir}
+fastqc ${bowtie2_decontam_fastq_dir}/*.fastq.gz --outdir ${fastqc_decontam_dir}
 ## 4.2 Run MultiQC on decontaminated data
-multiqc ${fastqc_output_decontam_dir} --outdir ${multiqc_output_dir}
+multiqc ${fastqc_decontam_dir} --outdir ${multiqc_decontam_dir}
