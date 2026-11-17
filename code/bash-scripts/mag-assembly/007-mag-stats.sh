@@ -4,130 +4,144 @@ conda activate mag_assembly-tools
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
+SAMPLES_TSV="${1}"
 
 # This script calculates statistics of assembled bins from MetaBAT2. CoverM is used to 
 # calculate relative abundances of dereplicated bins and contigs (from MEGAHIT).
 # Seqkit is used to calculate statistics such as contig length, GC%, AT% for all contigs 
 # in MEGAHIT output and in dereplicated bins, and saves as tab-separated files for each sample.
+echo "$(date +"%F %H:%M:%S")"
+require() { [[ -s "$1" ]] || { echo "ERROR: required file missing: $1" >&2; exit 1; }; }
+# Function that marks a sample as done (in a hidden directory)
+is_done()   { [[ -e "${mark_dir}/${2}.${1}.done" ]]; }   # is_done STEP SAMPLE
+mark_done() { touch "${mark_dir}/${2}.${1}.done"; }      # mark_done STEP SAMPLE
+
+# 1. Read the input file list
+[[ -s "${SAMPLES_TSV}" ]] || { echo "ERROR: metadata $SAMPLES_TSV missing or empty" >&2; exit 1; }
+declare -A R1 R2
+SAMPLES=()
+while IFS=$'\t' read -r sample_id \
+    || [[ -n "${sample_id}" ]]
+do
+    [[ "${sample_id}" == "sample_id" || -z "${sample_id}" ]] && continue
+    r1="${bowtie2_decontam_fastq_dir}/${sample_id}_trim_decontam_R1.fastq.gz"
+    r2="${bowtie2_decontam_fastq_dir}/${sample_id}_trim_decontam_R2.fastq.gz"
+    for f in "${r1}" "${r2}"; do
+        [[ -s "${f}" ]] || { echo "ERROR: missing input for ${sample_id}: ${f}" >&2; exit 1; } # True if file exists and has a size greater than zero.
+    done
+    SAMPLES+=("${sample_id}"); R1[$sample_id]="${r1}"; R2[$sample_id]="${r2}"
+done <  "${SAMPLES_TSV}"
+
+(( ${#SAMPLES[@]} > 0 )) || { echo "ERROR: no samples found" >&2; exit 1; } # Counts the number of elements in the final array of samples. If
+                                                    # the array is empty, raises an error
 
 echo "$(date +"%F %H:%M:%S")"
 
 # 1. CoverM calculates abundance of dereplicated bins
-for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
-do 
-    SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
-    #  base_name=$(basename "$SAMPLE" )
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
     ## At species level (95% ANI)
     echo "$(date +"%F %H:%M:%S")"
-    echo "Running CoverM on ${SAMPLE} at species level (95% ANI)"
-    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
-    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep95_tmp
+    echo "Running CoverM on ${SAMPLE_ID} at species level (95% ANI)"
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE_ID}"_drep95_tmp
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE_ID}"_drep99_tmp
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE_ID}"_all_bins_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE_ID}"_drep95_tmp
     coverm genome \
-    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-    --genome-fasta-files \
-    "${drep_output_dir}"/sa_95perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
-    -t "${nthreads_coverm}" \
-    --min-covered-fraction 0 \
-    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-        reads_per_base rpkm tpm \
-    -o "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv 
-    echo "$(date +"%F %H:%M:%S")"
+        --coupled "${R1[$SAMPLE_ID]}" \
+            "${R2[$SAMPLE_ID]}" \
+        --genome-fasta-files \
+            "${drep_output_dir}"/sa_95perc/dereplicated_genomes/"${SAMPLE_ID}"_bin.*.fa \
+        -t "${nthreads_coverm}" \
+        --min-covered-fraction 0 \
+        -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+            reads_per_base rpkm tpm \
+        -o "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_95perc_coverm_output.tsv 
     ## At strain level (99% ANI)
-    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
-    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_drep99_tmp
-    echo "Running CoverM on ${SAMPLE} at strain level (99% ANI)"
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE_ID}"_drep99_tmp
+    echo "Running CoverM on ${SAMPLE_ID} at strain level (99% ANI)"
     coverm genome \
-    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-    --genome-fasta-files \
-    "${drep_output_dir}"/sa_99perc/dereplicated_genomes/"${SAMPLE}"_bin.*.fa \
-    -t "${nthreads_coverm}" \
-    --min-covered-fraction 0 \
-    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-        reads_per_base rpkm tpm \
-    -o "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv 
+        --coupled "${R1[$SAMPLE_ID]}" \
+            "${R2[$SAMPLE_ID]}" \
+        --genome-fasta-files \
+            "${drep_output_dir}"/sa_99perc/dereplicated_genomes/"${SAMPLE_ID}"_bin.*.fa \
+        -t "${nthreads_coverm}" \
+        --min-covered-fraction 0 \
+        -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+            reads_per_base rpkm tpm \
+        -o "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_99perc_coverm_output.tsv 
     echo "$(date +"%F %H:%M:%S")"
     # Running CoverM on all bins
-    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
-    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_all_bins_tmp
-    echo "Running CoverM on all bins from ${SAMPLE}"
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE_ID}"_all_bins_tmp
+    echo "Running CoverM on all bins from ${SAMPLE_ID}"
     coverm genome \
-    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
-    --genome-fasta-files \
-    "${metabat2_output_dir}"/"${SAMPLE}"_bins/"${SAMPLE}"_bin.*.fa \
-    -t "${nthreads_coverm}" \
-    --min-covered-fraction 0 \
-    -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
-        reads_per_base rpkm tpm \
-    -o "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv;
+        --coupled "${R1[$SAMPLE_ID]}" \
+            "${R2[$SAMPLE_ID]}"  \
+        --genome-fasta-files \
+            "${metabat2_output_dir}"/"${SAMPLE_ID}"_bins/"${SAMPLE_ID}"_bin.*.fa \
+        -t "${nthreads_coverm}" \
+        --min-covered-fraction 0 \
+        -m relative_abundance mean trimmed_mean covered_fraction covered_bases variance length count \
+            reads_per_base rpkm tpm \
+        -o "${coverm_output_dir}"/"${SAMPLE_ID}"_all_bins_coverm_output.tsv;
 done 2>&1 |tee "${coverm_logs_dir}"/all_coverm.log
 echo "$(date +"%F %H:%M:%S")"
 
-
-for FILE in "${bowtie2_decontam_fastq_dir}"/*decontam_R1.fastq.gz
-do 
-    SAMPLE=$(basename "${FILE}" | sed "s/_trim_decontam_R1\.fastq\.gz//")
-    echo "$(date +"%F %H:%M:%S")"
+for SAMPLE_ID in "${SAMPLES[@]}" 
+do
     # On contigs
-    mkdir -p "${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
-    TMPDIR="${coverm_output_dir}"/"${SAMPLE}"_contigs_tmp
-    echo "Running CoverM on ${SAMPLE} at contig level"
+    mkdir -p "${coverm_output_dir}"/"${SAMPLE_ID}"_contigs_tmp
+    TMPDIR="${coverm_output_dir}"/"${SAMPLE_ID}"_contigs_tmp
+    echo "Running CoverM on ${SAMPLE_ID} at contig level"
     coverm contig \
-    --coupled "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R1.fastq.gz \
-        "${bowtie2_decontam_fastq_dir}"/"${SAMPLE}"_trim_decontam_R2.fastq.gz \
+    --coupled "${R1[$SAMPLE_ID]}" \
+            "${R2[$SAMPLE_ID]}" \
     --reference \
-    "${megahit_output_dir}"/"${SAMPLE}".megahit_asm/"${SAMPLE}"_final.contigs.fa \
+        "${megahit_output_dir}"/"${SAMPLE_ID}".megahit_asm/"${SAMPLE_ID}"_final.contigs.fa \
     -t "${nthreads_coverm}" \
     --min-covered-fraction 0 \
     -m mean trimmed_mean covered_fraction covered_bases variance length count reads_per_base rpkm tpm \
-    -o "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv;
+    -o "${coverm_output_dir}"/"${SAMPLE_ID}"_megahit_coverm_output.tsv;
 done 2>&1 |tee "${coverm_logs_dir}"/all_coverm_contig.log
 
-
-
 # Fix the unmapped value to merge
-for FILE in "${coverm_output_dir}"/*_sa_95perc_coverm_output.tsv
+for SAMPLE_ID in "${SAMPLES[@]}" 
 do
-    SAMPLE=$(basename "${FILE}" | sed "s/_sa_95perc_coverm_output\.tsv//")
-    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    awk -F'\t' -v sample_name="${SAMPLE_ID}" -v OFS='\t' '{
     if ($1=="unmapped") {$1= "unmapped_" sample_name;}
         {print }
     }'  \
-    "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output.tsv > \
-    "${coverm_output_dir}"/"${SAMPLE}"_sa_95perc_coverm_output_unmap_fix.tsv 
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_95perc_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_95perc_coverm_output_unmap_fix.tsv 
     # Fix for the other file (99%)
-    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    awk -F'\t' -v sample_name="${SAMPLE_ID}" -v OFS='\t' '{
     if ($1=="unmapped") {$1= "unmapped_" sample_name;} 
         {print }
     }'  \
-    "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output.tsv > \
-    "${coverm_output_dir}"/"${SAMPLE}"_sa_99perc_coverm_output_unmap_fix.tsv;
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_99perc_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_sa_99perc_coverm_output_unmap_fix.tsv;
 done
 
 # For all bins
-for FILE in "${coverm_output_dir}"/*all_bins_coverm_output.tsv
+for SAMPLE_ID in "${SAMPLES[@]}" 
 do
-    SAMPLE=$(basename "${FILE}" | sed "s/_all_bins_coverm_output\.tsv//")
-    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    awk -F'\t' -v sample_name="${SAMPLE_ID}" -v OFS='\t' '{
     if ($1=="unmapped") {$1= "unmapped_" sample_name;}
         {print }
     }'  \
-    "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output.tsv > \
-    "${coverm_output_dir}"/"${SAMPLE}"_all_bins_coverm_output_unmap_fix.tsv;
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_all_bins_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_all_bins_coverm_output_unmap_fix.tsv;
 done
 
 # For all contigs: we need to add sample name to contig
-for FILE in "${coverm_output_dir}"/*_megahit_coverm_output.tsv
+for SAMPLE_ID in "${SAMPLES[@]}" 
 do
-    SAMPLE=$(basename "${FILE}" | sed "s/_megahit_coverm_output\.tsv//")
-    awk -F'\t' -v sample_name="${SAMPLE}" -v OFS='\t' '{
+    awk -F'\t' -v sample_name="${SAMPLE_ID}" -v OFS='\t' '{
     $1= sample_name "_" $1 ;
     print
     }'  \
-    "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output.tsv > \
-    "${coverm_output_dir}"/"${SAMPLE}"_megahit_coverm_output_fix.tsv;
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_megahit_coverm_output.tsv > \
+    "${coverm_output_dir}"/"${SAMPLE_ID}"_megahit_coverm_output_fix.tsv;
 done
 
 conda activate qc-tools
@@ -148,7 +162,6 @@ awk 'FNR!=1'  "${coverm_output_dir}"/*_megahit_coverm_output_fix.tsv | \
   csvtk -t add-header -n contig,mean,trimmed_mean,covered_fraction,covered_bases,variance,length,read_count,reads_per_base,rpkm,tpm > \
   "${coverm_output_dir}"/all_samples_megahit_coverm.tsv
 
-conda activate qc-tools
 # 2. Calculate statistics for each contig in each sample (MEGAHIT output): contig IDs, contig lengths, GC %, 
 # AT %. Output is a tab-separated file for each sample which is located in a
 # directory with all sample statistics.
@@ -156,47 +169,41 @@ echo "$(date +"%F %H:%M:%S")"
 echo "Calculating statistics on contigs"
 mkdir -p "${seqkit_output_dir}"/megahit_all_tsv
 seqkit_all_tsv_dir="${seqkit_output_dir}"/megahit_all_tsv
-for FILE_DIR in "${megahit_output_dir}"/*.megahit_asm 
+for SAMPLE_ID in "${SAMPLES[@]}" 
 do 
- intermediate_date_time=$(date +"%F %H:%M:%S")
- echo "${intermediate_date_time}"
- base_name=$(basename "$FILE_DIR" )
- SAMPLE=$(echo "${base_name}" | sed "s/\.megahit_asm//" )
- contigs_fasta_file="${FILE_DIR}"/"${SAMPLE}"_final.contigs.fa
- echo "Calculating statistics on ${SAMPLE} contigs"
- seqkit fx2tab -l -g -n -i -H -B AT "${contigs_fasta_file}" | \
-    csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
-     awk -v sample="${SAMPLE}" 'BEGIN {FS=OFS="\t"}
-      FNR==1 {print "sample",$0};
-      FNR>1 {print sample,$0}'  > \
-      "${seqkit_all_tsv_dir}"/megahit_"${SAMPLE}"_seqkit.tsv;
+    asm="${megahit_output_dir}/${SAMPLE_ID}.megahit_asm"
+    contigs_fasta_file="${asm}"/"${SAMPLE_ID}"_final.contigs.fa
+    echo "$(date +"%F %H:%M:%S")"
+    echo "Calculating statistics on ${SAMPLE_ID} contigs"
+    seqkit fx2tab -l -g -n -i -H -B AT "${contigs_fasta_file}" | \
+        csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
+        awk -v sample="${SAMPLE_ID}" 'BEGIN {FS=OFS="\t"}
+        FNR==1 {print "sample",$0};
+        FNR>1 {print sample,$0}'  > \
+        "${seqkit_all_tsv_dir}"/megahit_"${SAMPLE_ID}"_seqkit.tsv;
 done
 echo "$(date +"%F %H:%M:%S")"
 
-
-
-
-
-# # Calculate statistics for each contig in each dereplicated bin: contig IDs, contig lengths, GC %, 
-# # AT %. Output is a tab-separated file for each bin which is located in a
-# # directory with all sample statistics.
-# echo "$(date +"%F %H:%M:%S")"
+# Calculate statistics for each contig in each dereplicated bin: contig IDs, contig lengths, GC %, 
+# AT %. Output is a tab-separated file for each bin which is located in a
+# directory with all sample statistics.
+echo "$(date +"%F %H:%M:%S")"
 echo "Calculating statistics on dereplicated bins"
 mkdir -p "${seqkit_output_dir}"/sa_95perc_all_tsv
 seqkit_all_tsv_dir="${seqkit_output_dir}"/sa_95perc_all_tsv
 
 for BIN_FASTA_FILE in "${drep_output_dir}"/sa_95perc/dereplicated_genomes/*_bin.*.fa
 do
- base_name=$(basename "${BIN_FASTA_FILE}" )
- base_name=$(echo "${base_name}" | sed "s/\.fa//")
- SAMPLE=$(echo "${base_name}" | sed "s/_bin\.[0-9]*//")
- BIN_ID=$(echo "${base_name}" | sed "s/${SAMPLE}_bin\.//")
- seqkit fx2tab -l -g -n -i -H -B AT "${BIN_FASTA_FILE}" | \
-    csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
-     awk -v bin_id="${BIN_ID}" -v sample="${SAMPLE}" 'BEGIN {FS=OFS="\t"}
-      FNR==1 {print "sample","bin_id",$0};
-      FNR>1 {print sample,bin_id,$0}'  > \
-      "${seqkit_all_tsv_dir}"/sa_95perc_"${SAMPLE}"_bin."${BIN_ID}"_seqkit.tsv;
+    base_name=$(basename "${BIN_FASTA_FILE}" )
+    base_name=$(echo "${base_name}" | sed "s/\.fa//")
+    SAMPLE=$(echo "${base_name}" | sed "s/_bin\.[0-9]*//")
+    BIN_ID=$(echo "${base_name}" | sed "s/${SAMPLE}_bin\.//")
+    seqkit fx2tab -l -g -n -i -H -B AT "${BIN_FASTA_FILE}" | \
+        csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
+        awk -v bin_id="${BIN_ID}" -v sample="${SAMPLE}" 'BEGIN {FS=OFS="\t"}
+        FNR==1 {print "sample","bin_id",$0};
+        FNR>1 {print sample,bin_id,$0}'  > \
+        "${seqkit_all_tsv_dir}"/sa_95perc_"${SAMPLE}"_bin."${BIN_ID}"_seqkit.tsv;
 done
 echo "Done"
 
@@ -206,16 +213,16 @@ seqkit_all_tsv_dir="${seqkit_output_dir}"/metabat2_bins_all_tsv
 
 for BIN_FASTA_FILE in "${metabat2_output_dir}"/*bins/*bin.*.fa
 do 
- base_name=$(basename "${BIN_FASTA_FILE}" )
- base_name=$(echo "${base_name}" | sed "s/\.fa//")
- SAMPLE=$(echo "${base_name}" | sed "s/_bin\.[0-9]*//")
- BIN_ID=$(echo "${base_name}" | sed "s/${SAMPLE}_bin\.//")
- seqkit fx2tab -l -g -n -i -H -B AT "${BIN_FASTA_FILE}" | \
-    csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
-     awk -v bin_id="${BIN_ID}" -v sample="${SAMPLE}" 'BEGIN {FS=OFS="\t"}
-      FNR==1 {print "sample","bin_id",$0};
-      FNR>1 {print sample,bin_id,$0}'  > \
-      "${seqkit_all_tsv_dir}"/metabat2_all_"${SAMPLE}"_bin."${BIN_ID}"_seqkit.tsv;
+    base_name=$(basename "${BIN_FASTA_FILE}" )
+    base_name=$(echo "${base_name}" | sed "s/\.fa//")
+    SAMPLE=$(echo "${base_name}" | sed "s/_bin\.[0-9]*//")
+    BIN_ID=$(echo "${base_name}" | sed "s/${SAMPLE}_bin\.//")
+    seqkit fx2tab -l -g -n -i -H -B AT "${BIN_FASTA_FILE}" | \
+        csvtk -t -C '&'  rename -f "#id",length -n contig_id,contig_length | \
+        awk -v bin_id="${BIN_ID}" -v sample="${SAMPLE}" 'BEGIN {FS=OFS="\t"}
+        FNR==1 {print "sample","bin_id",$0};
+        FNR>1 {print sample,bin_id,$0}'  > \
+        "${seqkit_all_tsv_dir}"/metabat2_all_"${SAMPLE}"_bin."${BIN_ID}"_seqkit.tsv;
 done
 echo "Done"
 
