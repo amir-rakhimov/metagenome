@@ -5,6 +5,7 @@ conda activate mag_assembly-tools
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
+SAMPLES_TSV="${1}"
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -39,7 +40,7 @@ do
     for f in "${r1}" "${r2}"; do
         [[ -s "${f}" ]] || { echo "ERROR: missing input for ${sample_id}: ${f}" >&2; exit 1; } # True if file exists and has a size greater than zero.
     done
-    sample_idS+=("${sample_id}"); R1[$sample_id]="${r1}"; R2[$sample_id]="${r2}"
+    SAMPLES+=("${sample_id}"); R1[$sample_id]="${r1}"; R2[$sample_id]="${r2}"
 done <  "${SAMPLES_TSV}"
 
 (( ${#SAMPLES[@]} > 0 )) || { echo "ERROR: no samples found" >&2; exit 1; } # Counts the number of elements in the final array of samples. If
