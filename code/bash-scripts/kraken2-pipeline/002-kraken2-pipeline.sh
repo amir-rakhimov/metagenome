@@ -4,7 +4,7 @@ conda activate kraken2-tools-2.1.3
 set -euo pipefail
 shopt -s nullglob
 source config/bash/config.sh
-
+SAMPLES_TSV="${1}"
 # When nullglob is enabled, if a glob pattern does not match any files,
 # it expands to nothing (an empty string) instead of returning the pattern itself.
 # So, if no matches are found, the script will skip the file
@@ -190,7 +190,7 @@ do
 	# rm ${kraken2_output_dir}/${SAMPLE_ID}_no_minimizer_data.kraken2.gz
 	# rm ${kraken2_classified_reads_dir}/${SAMPLE_ID}_classified__*.fq.gz;
     mark_done kraken2 "${SAMPLE_ID}";
-done 2>&1 |tee "${kraken2_output_dir}/kraken2_stdout_no_minimizer_data.txt"
+done 2>&1 |tee "${kraken2_LOGDIR}/kraken2_stdout_no_minimizer_data.log"
 
 ### --db
 ### --threads
@@ -246,7 +246,7 @@ do
 		-w "${bracken_reports_dir}/${SAMPLE_ID}_no_minimizer_data.breport"
 	gzip -9 --best "${KRAKEN2_REPORT}"
 	mark_done bracken "${SAMPLE_ID}";
-done 2>&1 |tee "${bracken_output_dir}/bracken_stdout_no_minimizer_data.txt"
+done 2>&1 |tee "${kraken2_LOGDIR}/bracken_stdout_no_minimizer_data.log"
 
 ### -d
 ### -i
