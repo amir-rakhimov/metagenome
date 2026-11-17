@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s nullglob
-RUN_ID=$(date +%Y%m%d_%H%M%S)
 # Load config
 source config/bash/config.sh
 
+mkdir -p jobreports
 mkdir -p data/4-mag/dbcan_db
 mkdir -p data/4-mag/checkm2_db
 mkdir -p "${silva_db_dir}"
-mkdir -p "${blastdb_path}"
-mkdir -p "${blastdb_path}"
+mkdir -p "${blastn_db_path}"
+mkdir -p "${blastp_db_path}"
 mkdir -p "${cazy_db_taxonomy_dir}"
 mkdir -p "${cazy_db_fasta_dir}"
 
@@ -27,6 +27,9 @@ mkdir -p "${metabat2_logs_dir}"
 
 mkdir -p "${checkm2_output_dir}"
 mkdir -p "${drep_output_dir}"
+mkdir -p "${drep_output_dir}/sa_95perc"
+mkdir -p "${drep_output_dir}/sa_99perc"
+
 mkdir -p "${mag_qc_logs_dir}"
 
 mkdir -p "${gtdbtk_output_dir}"
@@ -83,11 +86,11 @@ job_id10=$(sbatch --parsable --dependency=afterok:$job_id9 --export=ALL code/slu
 echo "Pipeline submitted"
 echo " step 1: ${job_id1}"
 echo " step 2: ${job_id2}"
-echo " step 2: ${job_id3}"
-echo " step 2: ${job_id4}"
-echo " step 2: ${job_id5}"
-echo " step 2: ${job_id6}"
-echo " step 2: ${job_id7}"
-echo " step 2: ${job_id8}"
-echo " step 2: ${job_id9}"
-echo " step 2: ${job_id10}"
+echo " step 3: ${job_id3}"
+echo " step 4: ${job_id4}"
+echo " step 5: ${job_id5}"
+echo " step 6: ${job_id6}"
+echo " step 7: ${job_id7}"
+echo " step 8: ${job_id8}"
+echo " step 9: ${job_id9}"
+echo " step 10: ${job_id10}"
