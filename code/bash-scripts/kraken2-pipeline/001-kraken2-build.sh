@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export OMP_NUM_THREADS=49
+export OMP_NUM_THREADS="${nthreads_kraken2_build}"
 source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate kraken2-tools-2.1.6
 set -euo pipefail
@@ -56,27 +56,32 @@ done
 # echo "$(date +"%F %H:%M:%S")"
 
 ## Build the database: uses taxonomy and library
-echo "Building the database"
-kraken2-build --build --threads "${nthreads_kraken2_build}" \
-	--db "${kraken2_db_dir}" \
-	--kmer-len "${kmer_len}"  \
-	--minimizer-len "${minimizer_len}" \
-	--minimizer-spaces "${minimizer_spaces}"
+if [[ -s "${kraken2_db_dir}/hash.k2d" ]]; then
+		echo "Database exists";	
+	else
+		echo "Building the database"
+		kraken2-build --build --threads "${nthreads_kraken2_build}" \
+			--db "${kraken2_db_dir}" \
+			--kmer-len "${kmer_len}"  \
+			--minimizer-len "${minimizer_len}" \
+			--minimizer-spaces "${minimizer_spaces}"
+fi
 echo "$(date +"%F %H:%M:%S")"
 ### 1. minimizer length must be no more than 31 for nucleotide databases, and 15 for protein databases
 ### 2. minimizer length must be no more than the k-mer length
 ### 3. if you change minimizer length, be sure to adjust minimizer spaces:
 ### A number s < l/4 can be chosen, and s positions in the minimizer will be
 #  masked out during all comparisons.
-echo "generating kmer distribution"
-python ~/miniconda3/envs/kraken2-tools-2.1.6/bin/generate_kmer_distribution.py \
-	-i "${kraken2_db_dir}"/database"${read_len}"mers.kraken \
-	-o "${kraken2_db_dir}"/database"${read_len}"mers.kmer_distrib
-
 echo "$(date +"%F %H:%M:%S")"
 echo "Building the bracken index"
+echo "Number of threads for building: ${nthreads_kraken2_build}"
 bracken-build -d "${kraken2_db_dir}" \
 	-t "${nthreads_kraken2_build}" \
 	-k "${kmer_len}" \
 	-l "${read_len}"
 echo "$(date +"%F %H:%M:%S")"
+echo "generating kmer distribution"
+
+python ~/miniconda3/envs/kraken2-tools-2.1.6/bin/generate_kmer_distribution.py \
+	-i "${kraken2_db_dir}"/database"${read_len}"mers.kraken \
+	-o "${kraken2_db_dir}"/database"${read_len}"mers.kmer_distrib
