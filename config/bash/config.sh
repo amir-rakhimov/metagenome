@@ -4,19 +4,16 @@
 ############################################################################
 project_home_dir=$HOME/projects/metagenome
 
+source "${project_home_dir}/config/run_ids.env"
+export qc_RUN_ID kraken2_RUN_ID mag_RUN_ID # date and time
 # --- QC ---
-qc_RUN_ID=$(date +%Y%m%d_%H%M%S)
-
+# from the run_ids.env
 # --- Kraken2 ---
-kraken2_RUN_ID=20240409_17_32_40
-kraken2_RUN_ID=$(date +%Y%m%d_%H%M%S)
 kraken2_OUTDIR="${project_home_dir}"/results/1-kraken2/"${kraken2_RUN_ID}"
 kraken2_LOGDIR="${kraken2_OUTDIR}"/logs
 kraken2_TMPDIR="${kraken2_OUTDIR}"/tmp
 
 # --- MAG ---
-mag_RUN_ID=20250303_17_54_26 #20250417_23_21_29
-# mag_RUN_ID=$(date +%Y%m%d_%H%M%S)
 mag_OUTDIR="${project_home_dir}"/results/2-mag/"${mag_RUN_ID}"
 mag_LOGDIR="${mag_OUTDIR}"/logs
 mag_TMPDIR="${mag_OUTDIR}"/tmp
@@ -24,17 +21,22 @@ mag_TMPDIR="${mag_OUTDIR}"/tmp
 ############################################################################
 # 2. Sample Metadata
 ############################################################################
-METADATA_DIR="${project_home_dir}"/data/metadata/tanes #???
-SAMPLES_IDS="${METADATA_DIR}"/sample_ids.tsv
-SAMPLES_TSV="${METADATA_DIR}"/sample-paths-decontam.tsv
-SAMPLES_PATHS_RAW="${METADATA_DIR}"/sample-paths-raw.tsv
+# METADATA_DIR="${project_home_dir}"/data/metadata/tanes # do we really need to hardcode the directory???
+# SAMPLES_TSV="${METADATA_DIR}"/sample-paths-decontam.tsv
+# SAMPLES_PATHS_RAW="${METADATA_DIR}"/sample-paths-raw.tsv
 
 ############################################################################
 # 3. External tools and reference data
 ############################################################################
+bash_utils_scripts_dir=$HOME/projects/utils/Bash
+r_utils_scripts_dir=$HOME/projects/utils/Bash
+python_utils_scripts_dir=$HOME/projects/utils/Bash
+meta_thermo_mpt_calculation_script=$HOME/meta-thermo/scripts/MPTcalculation.py
+meta_thermo_mpt_summary_script="${project_home_dir}/code/r-scripts/mag-assembly/mpt-summary.R"
 sratoolkit_scripts_dir=$HOME/sratoolkit.3.3.0-ubuntu64/bin
 metaquast_script_dir=$HOME/quast-5.2.0
-java_path=$HOME/jdk-24.0.1/bin/java
+java_path=$HOME/jdk-25.0.5.0.3/bin/java
+trimmomatic_path=$HOME/Trimmomatic-0.41/trimmomatic-0.41.jar
 picard_jar_path=$HOME/picard.jar
 reference_genomes_dir=$HOME/common_data/reference_genomes
 bowtie2_indices_dir=$HOME/common_data/bowtie2_indices
@@ -51,20 +53,23 @@ REV_ADAPTER=GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGATGACTATCTCGTATGCCGTCTTCTGCTTG
 ############################################################################
 # --- QC ---
 # nthreads_qc=40
-nthreads_qc=12
-nthreads_qc_sort=8
+nthreads_qc=8
+nthreads_qc_sort=6
 mem_req_qc=8G
 mem_req_qc_sort=4G
 
 # --- Kraken2 ---
-nthreads_kraken2=49
-nthreads_kraken2_build=38
+nthreads_kraken2=24
+nthreads_kraken2_build=24
 
 # --- MAG assembly ---
-nthreads_megahit=40
-nthreads_megahit_sort=35
+nthreads_megahit=8
+nthreads_megahit_sort=6
 mem_req_megahit=8G
 mem_req_megahit_sort=4G
+
+NTHREADS_METABAT2=8
+
 
 # --- MAG annotation ---
 nthreads_gtdbtk=15
@@ -94,15 +99,10 @@ minimizer_spaces=6
     ### 4. default kmer=35, l=31, s=7
 ### read length for kraken2-build and bracken:
 read_len=150
-# read length for kraken2-build and bracken
-read_len=150
 
 # --- Kraken2 database location ---
-# kraken2_db_date=20241209
-kraken2_db_date=20250919
-# kraken2_db_date=$(date +%Y%m%d)
 # kraken2_db_dir="${project_home_dir}"/data/kraken2_db/k2_large_20240307
-kraken2_db_dir="${project_home_dir}"/data/kraken2_db/k2_large_${kraken2_db_date} 
+kraken2_db_dir="${project_home_dir}"/data/3-kraken2/kraken2_db/k2_large_${kraken2_db_date} 
 
 # --- Kraken2 / Bracken run parameters ---
 ### confidence for kraken2 (default: 0):
@@ -118,15 +118,23 @@ sra_files_dir="${project_home_dir}"/data/sra-files
 fastq_dir="${project_home_dir}"/data/0-raw/fastq
 
 # --- QC (FastQC, MultiQC, cutadapt) ---
-qc_dir="${project_home_dir}"/data/1-qc
-fastqc_raw_output_dir="${qc_dir}"/fastqc_raw/"${qc_RUN_ID}"
-multiqc_raw_output_dir="${qc_dir}"/multiqc_raw/"${qc_RUN_ID}"
-fastqc_trimmed_output_dir="${qc_dir}"/fastqc_trimmed/"${qc_RUN_ID}"
-multiqc_trimmed_output_dir="${qc_dir}"/multiqc_trimmed/"${qc_RUN_ID}"
-cutadapt_output_dir="${qc_dir}"/cutadapt/"${qc_RUN_ID}"
+qc_dir="${project_home_dir}"/data/1-qc/"${qc_RUN_ID}"
+fastqc_raw_dir="${qc_dir}"/fastqc_raw
+multiqc_raw_dir="${qc_dir}"/multiqc_raw
+fastqc_trimmed_dir="${qc_dir}"/fastqc_trimmed
+multiqc_trimmed_dir="${qc_dir}"/multiqc_trimmed
+cutadapt_output_dir="${qc_dir}"/cutadapt
+
+# Tanes
+SUNBEAM_OUTDIR="${qc_dir}"/sunbeam_raw
+TRIMMOMATIC_OUTDIR="${qc_dir}"/trimmomatic
+KOMPLEXITY_OUTDIR="${qc_dir}"/komplexity
+BWA_INDICES_DIR=$HOME/common_data/bwa_indices
+BWA_OUTDIR="${project_home_dir}"/data/2-bwa/"${qc_RUN_ID}"
+BWA_SAM_DIR="${BWA_OUTDIR}"/sam
 
 # --- Decontamination (Bowtie2) ---
-bowtie2_dir="${project_home_dir}"/data/2-bowtie2
+bowtie2_dir="${project_home_dir}"/data/2-bowtie2/"${qc_RUN_ID}"
 bowtie2_sam_dir="${bowtie2_dir}"/sam
 bowtie2_bam_dir="${bowtie2_dir}"/bam
 bowtie2_filtered_bam_dir="${bowtie2_dir}"/filtered
@@ -151,7 +159,7 @@ krona_html_dir="${kraken2_OUTDIR}"/07-krona_html
 ############################################################################
 # --- 01 Assembly (MEGAHIT) ---
 megahit_output_dir="${mag_OUTDIR}"/01-megahit/assembled_contigs
-megahit_logs_dir="${mag_OUTDIR}"/01-megahit/logs
+megahit_logs_dir="${mag_LOGDIR}"/01-megahit
 megahit_aligned_reads_dir="${mag_OUTDIR}"/01-megahit/aligned_reads
 contig_coverages_dir="${mag_OUTDIR}"/01-megahit/contig_coverages
 metaquast_megahit_output_dir="${mag_OUTDIR}"/01-megahit/metaquast
@@ -160,13 +168,13 @@ bbwrap_refs_dir="${mag_OUTDIR}"/01-megahit/bbwrap_refs
 # --- 02 Binning (MetaBAT2) ---
 bam_contig_depths_dir="${mag_OUTDIR}"/02-metabat2/bam_contig_depths
 metabat2_output_dir="${mag_OUTDIR}"/02-metabat2/bins
-metabat2_logs_dir="${mag_OUTDIR}"/02-metabat2/logs
+metabat2_logs_dir="${mag_LOGDIR}"/02-metabat2
 metaquast_metabat2_output_dir="${mag_OUTDIR}"/02-metabat2/metaquast
 
 # --- 03 Bin QC (CheckM2, dRep) ---
 checkm2_output_dir="${mag_OUTDIR}"/03-qc/checkm2
 drep_output_dir="${mag_OUTDIR}"/03-qc/drep
-mag_qc_logs_dir="${mag_OUTDIR}"/03-qc/logs
+mag_qc_logs_dir="${mag_LOGDIR}"/03-qc
 
 # --- 04 Taxonomy (GTDB-tk, CompareM) ---
 gtdbtk_output_dir="${mag_OUTDIR}"/04-gtdbtk
@@ -175,18 +183,18 @@ comparem_output_dir="${mag_OUTDIR}"/04-gtdbtk/comparem
 # --- 05 Annotation ---
 prodigal_output_dir="${mag_OUTDIR}"/05-annotation/prodigal
 prokka_output_dir="${mag_OUTDIR}"/05-annotation/prokka
-prokka_logs_dir="${mag_OUTDIR}"/05-annotation/prokka/logs
+prokka_logs_dir="${mag_LOGDIR}"/05-annotation/prokka
 mmseqs_easy_cluster_output_dir="${mag_OUTDIR}"/05-annotation/mmseqs2/easy_cluster
 dbcan_output_dir="${mag_OUTDIR}"/05-annotation/dbcan
-dbcan_logs_dir="${mag_OUTDIR}"/05-annotation/dbcan/logs
+dbcan_logs_dir="${mag_LOGDIR}"/05-annotation/dbcan
 kofam_scan_output_dir="${mag_OUTDIR}"/05-annotation/kofam_scan
 annotation_fasta_dir="${mag_OUTDIR}"/05-annotation/fasta
 
 # --- 06 Gene quantification (Picard, HTseq, TPM) ---
 picard_output_dir="${mag_OUTDIR}"/06-gene_quantification/picard
-picard_logs_dir="${mag_OUTDIR}"/06-gene_quantification/picard/logs
+picard_logs_dir="${mag_LOGDIR}"/06-gene_quantification/picard
 htseq_gene_count_dir="${mag_OUTDIR}"/06-gene_quantification/htseq
-htseq_logs_dir="${mag_OUTDIR}"/06-gene_quantification/htseq/logs
+htseq_logs_dir="${mag_LOGDIR}"/06-gene_quantification/htseq
 gene_lengths_dir="${mag_OUTDIR}"/06-gene_quantification/gene_lengths
 tpm_files_dir="${mag_OUTDIR}"/06-gene_quantification/tpm
 prokka_gtf_dir="${mag_OUTDIR}"/05-annotation/prokka/gtf
@@ -194,7 +202,7 @@ prokka_contig_gene_maps_dir="${mag_OUTDIR}"/05-annotation/prokka/contig_gene_map
 
 # --- 07 MAG stats (CoverM, seqkit) ---
 coverm_output_dir="${mag_OUTDIR}"/07-mag_stats/coverm
-coverm_logs_dir="${mag_OUTDIR}"/07-mag_stats/coverm/logs
+coverm_logs_dir="${mag_LOGDIR}"/07-mag_stats/coverm
 coverm_drep_95_dir="${mag_OUTDIR}"/07-mag_stats/coverm/drep_95
 coverm_drep_99_dir="${mag_OUTDIR}"/07-mag_stats/coverm/drep_99
 coverm_metabat2_dir="${mag_OUTDIR}"/07-mag_stats/coverm/metabat2
@@ -210,7 +218,7 @@ blastn_output_dir="${mag_OUTDIR}"/08-contig_blast
 
 # --- 09 CAZyme BLAST ---
 blastp_output_dir="${mag_OUTDIR}"/09-cazyme_blast/blastp_results
-blastp_logs_dir="${mag_OUTDIR}"/09-cazyme_blast/logs
+blastp_logs_dir="${mag_LOGDIR}"/09-cazyme_blast
 
 # --- 09 MetaThermo ---
 metathermo_out_dir="${mag_OUTDIR}"/10-meta_thermo
@@ -219,6 +227,7 @@ metathermo_out_dir="${mag_OUTDIR}"/10-meta_thermo
 # 10. Databases (SILVA, CAZy)
 ############################################################################
 silva_db_dir="${project_home_dir}"/data/4-mag/silva_db
+silva_db_filename="${silva_db_dir}"/SILVA_138.2_SSURef_NR99_tax_silva.fasta
 
 blastn_db_path="${project_home_dir}"/data/4-mag/blast_dbs/SILVA_138_2_db
 blastp_db_path="${project_home_dir}"/data/4-mag/blast_dbs/cazy_pep_db
